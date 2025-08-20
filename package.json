@@ -45,6 +45,8 @@
         ]
     },
     "dependencies": {
+        "@types/config": "^3.3.5",
+        "config": "^4.1.1",
         "cross-env": "^10.0.0",
         "express": "^5.1.0",
         "http-errors": "^2.0.0",
