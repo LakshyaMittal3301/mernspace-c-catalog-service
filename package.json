@@ -39,6 +39,9 @@
         ]
     },
     "dependencies": {
-        "express": "^5.1.0"
+        "cross-env": "^10.0.0",
+        "express": "^5.1.0",
+        "uuid": "^11.1.0",
+        "winston": "^3.17.0"
     }
 }
