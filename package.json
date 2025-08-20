@@ -25,11 +25,17 @@
     },
     "devDependencies": {
         "@types/express": "^5.0.3",
+        "@types/http-errors": "^2.0.5",
+        "@types/jest": "^30.0.0",
         "@types/node": "^24.3.0",
+        "@types/supertest": "^6.0.3",
         "husky": "^9.1.7",
+        "jest": "^30.0.5",
         "lint-staged": "^16.1.5",
         "nodemon": "^3.1.10",
         "prettier": "3.6.2",
+        "supertest": "^7.1.4",
+        "ts-jest": "^29.4.1",
         "ts-node": "^10.9.2",
         "typescript": "^5.9.2"
     },
@@ -41,6 +47,7 @@
     "dependencies": {
         "cross-env": "^10.0.0",
         "express": "^5.1.0",
+        "http-errors": "^2.0.0",
         "uuid": "^11.1.0",
         "winston": "^3.17.0"
     }
