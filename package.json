@@ -52,6 +52,7 @@
         "express-validator": "^7.2.1",
         "http-errors": "^2.0.0",
         "mongoose": "^8.17.2",
+        "nanoid": "^5.1.5",
         "uuid": "^11.1.0",
         "winston": "^3.17.0"
     }

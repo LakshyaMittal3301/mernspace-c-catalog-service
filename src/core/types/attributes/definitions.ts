@@ -1,4 +1,4 @@
-import { AttributeKind } from "./common";
+import { AttributeKind, BaseAttributeOption } from "./common";
 
 export type BaseAttributeDef = {
     id: string;
@@ -10,20 +10,20 @@ export type BaseAttributeDef = {
 
 export type SwitchAttributeDef = BaseAttributeDef & {
     kind: "switch";
-    options: [{ id: string; label: string }, { id: string; label: string }];
+    options: [BaseAttributeOption, BaseAttributeOption];
     defaultOptionId: string;
 };
 
 export type RadioAttributeDef = BaseAttributeDef & {
     kind: "radio";
-    options: { id: string; label: string }[];
+    options: BaseAttributeOption[];
     defaultOptionId?: string;
     isRequired?: boolean;
 };
 
 export type CheckboxAttributeDef = BaseAttributeDef & {
     kind: "checkbox";
-    options: { id: string; label: string }[];
+    options: BaseAttributeOption[];
     minSelected?: number;
     maxSelected?: number;
 };

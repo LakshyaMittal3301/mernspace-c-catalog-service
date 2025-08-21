@@ -1,3 +1,3 @@
 export * from "./preset";
-export * from "./product";
+export * from "./definition";
 export * from "./common";

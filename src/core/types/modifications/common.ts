@@ -23,4 +23,6 @@ export type CheckboxModificationGroup = BaseModificationGroup & {
 export type BaseModificationOptions = {
     id: string;
     label: string;
+    isDeleted?: boolean;
+    deletedAt?: Date;
 };

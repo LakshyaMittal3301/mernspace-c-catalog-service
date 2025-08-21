@@ -1,16 +1,24 @@
 import { Schema, model, HydratedDocument } from "mongoose";
+import { nanoid } from "nanoid";
 import { Category } from "./category.types";
 
+const genId = () => nanoid(10);
+
 const AttributeOptionSchema = new Schema(
-    { id: { type: String, required: true }, label: { type: String, required: true } },
+    {
+        id: { type: String, required: true, default: genId, immutable: true },
+        label: { type: String, required: true },
+        isDeleted: { type: Boolean, default: false },
+        deletedAt: { type: Date },
+    },
     { _id: false },
 );
 
 const AttributeDefBaseSchema = new Schema(
     {
-        id: { type: String, required: true },
+        id: { type: String, required: true, default: genId, immutable: true },
         name: { type: String, required: true },
-        kind: { type: String, required: true, enum: ["checkbox", "radio", "switch"] },
+        kind: { type: String, required: true, enum: ["checkbox", "radio", "switch"], immutable: true },
         isDeleted: { type: Boolean, default: false },
         deletedAt: { type: Date },
     },
@@ -62,15 +70,20 @@ const CheckboxDefSchema = new Schema(
 );
 
 const PresetOptionSchema = new Schema(
-    { id: { type: String, required: true }, label: { type: String, required: true } },
+    {
+        id: { type: String, required: true, default: genId, immutable: true },
+        label: { type: String, required: true },
+        isDeleted: { type: Boolean, default: false },
+        deletedAt: { type: Date },
+    },
     { _id: false },
 );
 
 const ModificationPresetBaseSchema = new Schema(
     {
-        id: { type: String, required: true },
+        id: { type: String, required: true, default: genId, immutable: true },
         name: { type: String, required: true },
-        kind: { type: String, required: true, enum: ["checkbox", "radio"] },
+        kind: { type: String, required: true, enum: ["checkbox", "radio"], immutable: true },
         isDeleted: { type: Boolean, default: false },
         deletedAt: { type: Date },
     },
@@ -107,15 +120,17 @@ const CheckboxModificationSchema = new Schema(
     { _id: false },
 );
 
+/* ---------- Category ---------- */
 const CategorySchema = new Schema<Category>(
     {
-        name: { type: String, required: true },
+        name: { type: String, required: true, unique: true },
         attributes: { type: [AttributeDefBaseSchema], default: [] },
         modificationPresets: { type: [ModificationPresetBaseSchema], default: [] },
     },
     { timestamps: true },
 );
 
+/* Array discriminators */
 (CategorySchema.path("attributes") as any).discriminator("switch", SwitchDefSchema);
 (CategorySchema.path("attributes") as any).discriminator("radio", RadioDefSchema);
 (CategorySchema.path("attributes") as any).discriminator("checkbox", CheckboxDefSchema);
@@ -123,15 +138,36 @@ const CategorySchema = new Schema<Category>(
 (CategorySchema.path("modificationPresets") as any).discriminator("radio", RadioModificationSchema);
 (CategorySchema.path("modificationPresets") as any).discriminator("checkbox", CheckboxModificationSchema);
 
-function uniqueOptionIds(def: any) {
+/* ---------- Helpers ---------- */
+const ensureIds = (obj: any) => {
+    if (!obj) return;
+    if (!obj.id) obj.id = genId();
+    if (Array.isArray(obj.options)) {
+        for (const o of obj.options) if (!o.id) o.id = genId();
+    }
+};
+
+const uniqueIds = (items: any[] = []) => new Set(items.map((x) => x.id)).size === items.length;
+
+const uniqueOptionIds = (def: any) => {
     if (!def?.options) return true;
     const ids = def.options.map((o: any) => o.id);
     return new Set(ids).size === ids.length;
-}
+};
 
+/* ---------- Pre-validate: assign ids, enforce uniqueness, validate ---------- */
 CategorySchema.pre("validate", function (next) {
     const doc: any = this;
 
+    // 1) Ensure IDs exist (in case client omitted them)
+    for (const d of doc.attributes ?? []) ensureIds(d);
+    for (const p of doc.modificationPresets ?? []) ensureIds(p);
+
+    // 2) Uniqueness of def/preset ids within the category
+    if (!uniqueIds(doc.attributes)) return next(new Error("Duplicate attribute definition ids"));
+    if (!uniqueIds(doc.modificationPresets)) return next(new Error("Duplicate modification preset ids"));
+
+    // 3) Per-item validation (incl. option id uniqueness)
     for (const d of doc.attributes ?? []) {
         if (!uniqueOptionIds(d)) return next(new Error(`Duplicate option ids in attribute '${d.name}'`));
         if (d.kind === "checkbox" && d.maxSelected != null) {
