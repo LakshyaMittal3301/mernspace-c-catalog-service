@@ -35,6 +35,7 @@ const SwitchDefSchema = new Schema(
             },
         },
         defaultOptionId: { type: String, required: true },
+        defaultOptionIndex: { type: Number, select: false },
     },
     { _id: false },
 );
@@ -50,6 +51,7 @@ const RadioDefSchema = new Schema(
         },
         defaultOptionId: { type: String },
         isRequired: { type: Boolean, default: false },
+        defaultOptionIndex: { type: Number, select: false },
     },
     { _id: false },
 );
@@ -101,6 +103,7 @@ const RadioModificationSchema = new Schema(
         },
         defaultOptionId: { type: String },
         isRequired: { type: Boolean, default: false },
+        defaultOptionIndex: { type: Number, select: false },
     },
     { _id: false },
 );
@@ -159,42 +162,86 @@ const uniqueOptionIds = (def: any) => {
 CategorySchema.pre("validate", function (next) {
     const doc: any = this;
 
+    const attributes = doc.attributes ?? [];
+    const presets = doc.modificationPresets ?? [];
+
     // 1) Ensure IDs exist (in case client omitted them)
-    for (const d of doc.attributes ?? []) ensureIds(d);
-    for (const p of doc.modificationPresets ?? []) ensureIds(p);
+    for (const d of attributes) ensureIds(d);
+    for (const p of presets) ensureIds(p);
 
     // 2) Uniqueness of def/preset ids within the category
-    if (!uniqueIds(doc.attributes)) return next(new Error("Duplicate attribute definition ids"));
-    if (!uniqueIds(doc.modificationPresets)) return next(new Error("Duplicate modification preset ids"));
+    if (!uniqueIds(attributes)) return next(new Error("Duplicate attribute definition ids"));
+    if (!uniqueIds(presets)) return next(new Error("Duplicate modification preset ids"));
 
-    // 3) Per-item validation (incl. option id uniqueness)
-    for (const d of doc.attributes ?? []) {
+    // Helper: resolve defaultOptionIndex → defaultOptionId, then strip index
+    const resolveDefaultFromIndex = (container: any, kind: "switch" | "radio") => {
+        if (!Array.isArray(container.options)) return;
+
+        if (typeof container.defaultOptionIndex === "number") {
+            const idx = container.defaultOptionIndex;
+            const opt = container.options[idx];
+
+            if (!opt) {
+                // Give a precise error if index is out of range
+                const label = container.name ?? "(unnamed)";
+                return next(new Error(`defaultOptionIndex out of range for '${label}'`));
+            }
+
+            container.defaultOptionId = opt.id;
+        }
+
+        // Do not persist the index field
+        container.defaultOptionIndex = undefined;
+    };
+
+    // 3) Per-attribute validation
+    for (const d of attributes) {
+        // Map index → id for switch/radio
+        if (d.kind === "switch") resolveDefaultFromIndex(d, "switch");
+        if (d.kind === "radio") resolveDefaultFromIndex(d, "radio");
+
+        // Option ID uniqueness within the attribute
         if (!uniqueOptionIds(d)) return next(new Error(`Duplicate option ids in attribute '${d.name}'`));
+
+        // Checkbox constraints
         if (d.kind === "checkbox" && d.maxSelected != null) {
             const max = d.maxSelected as number;
             const min = d.minSelected ?? 0;
             if (max < min) return next(new Error(`maxSelected < minSelected for '${d.name}'`));
-            if (d.options && max > d.options.length)
+            if (d.options && max > d.options.length) {
                 return next(new Error(`maxSelected > options.length for '${d.name}'`));
+            }
         }
+
+        // defaultOptionId must be present in options when provided
         if (d.defaultOptionId) {
             const ok = d.options?.some((o: any) => o.id === d.defaultOptionId);
             if (!ok) return next(new Error(`defaultOptionId not in options for '${d.name}'`));
         }
     }
 
-    for (const d of doc.modificationPresets ?? []) {
-        if (!uniqueOptionIds(d)) return next(new Error(`Duplicate option ids in modification '${d.name}'`));
-        if (d.kind === "checkbox" && d.maxSelected != null) {
-            const max = d.maxSelected as number;
-            const min = d.minSelected ?? 0;
-            if (max < min) return next(new Error(`maxSelected < minSelected for '${d.name}'`));
-            if (d.options && max > d.options.length)
-                return next(new Error(`maxSelected > options.length for '${d.name}'`));
+    // 4) Per-preset validation
+    for (const m of presets) {
+        // Map index → id for radio presets
+        if (m.kind === "radio") resolveDefaultFromIndex(m, "radio");
+
+        // Option ID uniqueness within the preset
+        if (!uniqueOptionIds(m)) return next(new Error(`Duplicate option ids in modification '${m.name}'`));
+
+        // Checkbox constraints
+        if (m.kind === "checkbox" && m.maxSelected != null) {
+            const max = m.maxSelected as number;
+            const min = m.minSelected ?? 0;
+            if (max < min) return next(new Error(`maxSelected < minSelected for '${m.name}'`));
+            if (m.options && max > m.options.length) {
+                return next(new Error(`maxSelected > options.length for '${m.name}'`));
+            }
         }
-        if (d.defaultOptionId) {
-            const ok = d.options?.some((o: any) => o.id === d.defaultOptionId);
-            if (!ok) return next(new Error(`defaultOptionId not in options for '${d.name}'`));
+
+        // defaultOptionId must be present in options when provided
+        if (m.defaultOptionId) {
+            const ok = m.options?.some((o: any) => o.id === m.defaultOptionId);
+            if (!ok) return next(new Error(`defaultOptionId not in options for '${m.name}'`));
         }
     }
 

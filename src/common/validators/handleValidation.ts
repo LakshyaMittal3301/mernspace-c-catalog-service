@@ -1,5 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { validationResult } from "express-validator";
+import createHttpError from "http-errors";
+import logger from "../../config/logger";
 
 export const handleValidation = (req: Request, res: Response, next: NextFunction) => {
     const result = validationResult(req);
@@ -12,5 +14,6 @@ export const handleValidation = (req: Request, res: Response, next: NextFunction
         location: err.type === "field" ? err.location : "",
     }));
 
+    logger.error("Validation errors", { errors });
     return res.status(400).json({ errors });
 };

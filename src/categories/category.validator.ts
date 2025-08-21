@@ -1,55 +1,37 @@
 import { checkSchema, CustomValidator } from "express-validator";
 
-/** Only check uniqueness if client actually supplies ids (they're optional now) */
-const validateOptionsUniqueIfIdsPresent = (opts: any[]) => {
-    if (!Array.isArray(opts)) return false;
-    const ids = opts.map((o: any) => o?.id).filter((x: any) => typeof x === "string" && x.trim());
-    if (ids.length === 0) return true;
-    return new Set(ids).size === ids.length;
-};
+const isNonEmptyString = (v: any) => typeof v === "string" && v.trim().length > 0;
 
-const validateAttributeItem: CustomValidator = (attribute) => {
-    if (!attribute || !["radio", "checkbox", "switch"].includes(attribute.kind)) return false;
-    if (!attribute.name || typeof attribute.name !== "string" || !attribute.name.trim()) return false;
-    if (!Array.isArray(attribute.options) || attribute.options.length < 1) return false;
+const validateAttributeItem: CustomValidator = (a) => {
+    if (!a || !["radio", "checkbox", "switch"].includes(a.kind)) return false;
+    if (!isNonEmptyString(a.name)) return false;
+    if (!Array.isArray(a.options) || a.options.length < 1) return false;
+    if (!a.options.every((o: any) => o && isNonEmptyString(o.label))) return false;
 
-    // Options: id is OPTIONAL (server generates). We only require a non-empty label.
-    if (
-        !attribute.options.every(
-            (o: any) =>
-                o &&
-                typeof o.label === "string" &&
-                o.label.trim() &&
-                // optional fields:
-                (o.id === undefined || (typeof o.id === "string" && o.id.trim())) &&
-                (o.isDeleted === undefined || typeof o.isDeleted === "boolean") &&
-                (o.deletedAt === undefined || typeof o.deletedAt === "string" || o.deletedAt instanceof Date),
+    if (a.kind === "switch") {
+        if (a.options.length !== 2) return false;
+        if (typeof a.defaultOptionIndex !== "number") return false;
+        if (a.defaultOptionIndex < 0 || a.defaultOptionIndex > 1) return false;
+    }
+
+    if (a.kind === "radio") {
+        if (
+            a.defaultOptionIndex !== undefined &&
+            (typeof a.defaultOptionIndex !== "number" ||
+                a.defaultOptionIndex < 0 ||
+                a.defaultOptionIndex >= a.options.length)
         )
-    )
-        return false;
-
-    if (!validateOptionsUniqueIfIdsPresent(attribute.options)) return false;
-
-    if (attribute.kind === "switch") {
-        if (attribute.options.length !== 2) return false;
-        if (attribute.defaultOptionId !== undefined && typeof attribute.defaultOptionId !== "string") return false;
+            return false;
+        if (a.isRequired !== undefined && typeof a.isRequired !== "boolean") return false;
     }
 
-    if (attribute.kind === "radio") {
-        if (attribute.defaultOptionId !== undefined && typeof attribute.defaultOptionId !== "string") return false;
-        if (attribute.isRequired !== undefined && typeof attribute.isRequired !== "boolean") return false;
-    }
-
-    // Checkbox constraints
-    if (attribute.kind === "checkbox") {
-        const minSelected = attribute.minSelected ?? 0;
-        const maxSelected = attribute.maxSelected ?? attribute.options.length;
-        if (typeof minSelected !== "number" || typeof maxSelected !== "number") return false;
-        if (minSelected < 0) return false;
-        if (minSelected > attribute.options.length) return false;
-        if (maxSelected < 0) return false;
-        if (maxSelected > attribute.options.length) return false;
-        if (maxSelected < minSelected) return false;
+    if (a.kind === "checkbox") {
+        const min = a.minSelected ?? 0;
+        const max = a.maxSelected ?? a.options.length;
+        if (typeof min !== "number" || typeof max !== "number") return false;
+        if (min < 0) return false;
+        if (max < min) return false;
+        if (max > a.options.length) return false;
     }
 
     return true;
@@ -57,27 +39,18 @@ const validateAttributeItem: CustomValidator = (attribute) => {
 
 const validatePresetItem: CustomValidator = (m) => {
     if (!m || !["radio", "checkbox"].includes(m.kind)) return false;
-    if (!m.name || typeof m.name !== "string" || !m.name.trim()) return false;
+    if (!isNonEmptyString(m.name)) return false;
     if (!Array.isArray(m.options) || m.options.length < 1) return false;
-
-    // Options for presets: id OPTIONAL; label required; soft-delete fields allowed
-    if (
-        !m.options.every(
-            (o: any) =>
-                o &&
-                typeof o.label === "string" &&
-                o.label.trim() &&
-                (o.id === undefined || (typeof o.id === "string" && o.id.trim())) &&
-                (o.isDeleted === undefined || typeof o.isDeleted === "boolean") &&
-                (o.deletedAt === undefined || typeof o.deletedAt === "string" || o.deletedAt instanceof Date),
-        )
-    )
-        return false;
-
-    if (!validateOptionsUniqueIfIdsPresent(m.options)) return false;
+    if (!m.options.every((o: any) => o && isNonEmptyString(o.label))) return false;
 
     if (m.kind === "radio") {
-        if (m.defaultOptionId !== undefined && typeof m.defaultOptionId !== "string") return false;
+        if (
+            m.defaultOptionIndex !== undefined &&
+            (typeof m.defaultOptionIndex !== "number" ||
+                m.defaultOptionIndex < 0 ||
+                m.defaultOptionIndex >= m.options.length)
+        )
+            return false;
         if (m.isRequired !== undefined && typeof m.isRequired !== "boolean") return false;
     } else {
         const min = m.minSelected ?? 0;

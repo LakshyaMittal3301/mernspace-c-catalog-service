@@ -16,6 +16,7 @@
     "main": "index.js",
     "scripts": {
         "dev": "cross-env NODE_ENV=development nodemon src/server.ts",
+        "dev:debug": "cross-env NODE_ENV=development nodemon --exec \"node --inspect=9229 -r ts-node/register\" src/server.ts",
         "build": "tsc",
         "format:check": "prettier . --check",
         "format:fix": "prettier . --write",
@@ -24,6 +25,7 @@
         "start": "ts-node src/index.ts"
     },
     "devDependencies": {
+        "@types/cookie-parser": "^1.4.9",
         "@types/express": "^5.0.3",
         "@types/http-errors": "^2.0.5",
         "@types/jest": "^30.0.0",
@@ -47,10 +49,13 @@
     "dependencies": {
         "@types/config": "^3.3.5",
         "config": "^4.1.1",
+        "cookie-parser": "^1.4.7",
         "cross-env": "^10.0.0",
         "express": "^5.1.0",
+        "express-jwt": "^8.5.1",
         "express-validator": "^7.2.1",
         "http-errors": "^2.0.0",
+        "jwks-rsa": "^3.2.0",
         "mongoose": "^8.17.2",
         "nanoid": "^5.1.5",
         "uuid": "^11.1.0",

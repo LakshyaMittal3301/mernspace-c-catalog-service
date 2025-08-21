@@ -166,3 +166,8 @@ vite.config.ts.timestamp-*
 
 # Config
 /config
+
+.vscode
+
+# Built Visual Studio Code Extensions
+*.vsix
