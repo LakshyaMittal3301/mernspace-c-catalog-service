@@ -10,8 +10,8 @@ export interface ICategoryService {
 export class CategoryService implements ICategoryService {
     constructor(private categoryModel: Model<Category>) {}
 
-    create = async (dto: CreateCategoryDto): Promise<PublicCategoryDto> => {
+    async create(dto: CreateCategoryDto): Promise<PublicCategoryDto> {
         const created = await this.categoryModel.create(dto);
         return toPublicCategoryDto(created);
-    };
+    }
 }

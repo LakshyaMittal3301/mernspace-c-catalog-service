@@ -4,8 +4,9 @@ import { handleValidation } from "../common/validators/handleValidation";
 import CategoryController from "./category.controller";
 import { CategoryService } from "./category.service";
 import logger from "../config/logger";
+import { CategoryModel } from "./category.model";
 
-const categoryService = new CategoryService();
+const categoryService = new CategoryService(CategoryModel);
 const controller = new CategoryController(logger, categoryService);
 
 const router = express.Router();
