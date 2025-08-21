@@ -4,7 +4,6 @@ type BaseAttributeDef = {
     id: string;
     name: string;
     kind: AttributeKind;
-    required?: boolean;
     isDeleted?: boolean;
     deletedAt?: Date;
 };
@@ -12,13 +11,14 @@ type BaseAttributeDef = {
 export type SwitchAttributeDef = BaseAttributeDef & {
     kind: "switch";
     options: [{ id: string; label: string }, { id: string; label: string }];
-    defaultOptionId?: string;
+    defaultOptionId: string;
 };
 
 export type RadioAttributeDef = BaseAttributeDef & {
     kind: "radio";
     options: { id: string; label: string }[];
     defaultOptionId?: string;
+    isRequired?: boolean;
 };
 
 export type CheckboxAttributeDef = BaseAttributeDef & {
