@@ -1,13 +1,9 @@
-import { InferSchemaType, model, Schema } from "mongoose";
+import { Schema, model, HydratedDocument } from "mongoose";
+import { Category } from "./category.types";
 
 const AttributeOptionSchema = new Schema(
-    {
-        id: { type: String, required: true },
-        label: { type: String, required: true },
-    },
-    {
-        _id: false,
-    },
+    { id: { type: String, required: true }, label: { type: String, required: true } },
+    { _id: false },
 );
 
 const AttributeDefBaseSchema = new Schema(
@@ -18,10 +14,7 @@ const AttributeDefBaseSchema = new Schema(
         isDeleted: { type: Boolean, default: false },
         deletedAt: { type: Date },
     },
-    {
-        _id: false,
-        discriminatorKey: "kind",
-    },
+    { _id: false, discriminatorKey: "kind" },
 );
 
 const SwitchDefSchema = new Schema(
@@ -29,15 +22,13 @@ const SwitchDefSchema = new Schema(
         options: {
             type: [AttributeOptionSchema],
             validate: {
-                validator: (v: unknown) => Array.isArray(v) && v.length == 2,
+                validator: (v: unknown) => Array.isArray(v) && v.length === 2,
                 message: "Switch Attribute must have exactly 2 options",
             },
         },
         defaultOptionId: { type: String, required: true },
     },
-    {
-        _id: false,
-    },
+    { _id: false },
 );
 
 const RadioDefSchema = new Schema(
@@ -52,9 +43,7 @@ const RadioDefSchema = new Schema(
         defaultOptionId: { type: String },
         isRequired: { type: Boolean, default: false },
     },
-    {
-        _id: false,
-    },
+    { _id: false },
 );
 
 const CheckboxDefSchema = new Schema(
@@ -69,19 +58,12 @@ const CheckboxDefSchema = new Schema(
         minSelected: { type: Number, default: 0 },
         maxSelected: { type: Number },
     },
-    {
-        _id: false,
-    },
+    { _id: false },
 );
 
 const PresetOptionSchema = new Schema(
-    {
-        id: { type: String, required: true },
-        label: { type: String, required: true },
-    },
-    {
-        _id: false,
-    },
+    { id: { type: String, required: true }, label: { type: String, required: true } },
+    { _id: false },
 );
 
 const ModificationPresetBaseSchema = new Schema(
@@ -92,10 +74,7 @@ const ModificationPresetBaseSchema = new Schema(
         isDeleted: { type: Boolean, default: false },
         deletedAt: { type: Date },
     },
-    {
-        _id: false,
-        discriminatorKey: "kind",
-    },
+    { _id: false, discriminatorKey: "kind" },
 );
 
 const RadioModificationSchema = new Schema(
@@ -110,9 +89,7 @@ const RadioModificationSchema = new Schema(
         defaultOptionId: { type: String },
         isRequired: { type: Boolean, default: false },
     },
-    {
-        _id: false,
-    },
+    { _id: false },
 );
 
 const CheckboxModificationSchema = new Schema(
@@ -127,20 +104,16 @@ const CheckboxModificationSchema = new Schema(
         minSelected: { type: Number, default: 0 },
         maxSelected: { type: Number },
     },
-    {
-        _id: false,
-    },
+    { _id: false },
 );
 
-const CategorySchema = new Schema(
+const CategorySchema = new Schema<Category>(
     {
         name: { type: String, required: true },
         attributes: { type: [AttributeDefBaseSchema], default: [] },
         modificationPresets: { type: [ModificationPresetBaseSchema], default: [] },
     },
-    {
-        timestamps: true,
-    },
+    { timestamps: true },
 );
 
 (CategorySchema.path("attributes") as any).discriminator("switch", SwitchDefSchema);
@@ -158,6 +131,7 @@ function uniqueOptionIds(def: any) {
 
 CategorySchema.pre("validate", function (next) {
     const doc: any = this;
+
     for (const d of doc.attributes ?? []) {
         if (!uniqueOptionIds(d)) return next(new Error(`Duplicate option ids in attribute '${d.name}'`));
         if (d.kind === "checkbox" && d.maxSelected != null) {
@@ -187,8 +161,9 @@ CategorySchema.pre("validate", function (next) {
             if (!ok) return next(new Error(`defaultOptionId not in options for '${d.name}'`));
         }
     }
+
     next();
 });
 
-export type CategoryDoc = InferSchemaType<typeof CategorySchema>;
-export const CategoryModel = model("Category", CategorySchema);
+export type CategoryDoc = HydratedDocument<Category>;
+export const CategoryModel = model<Category>("Category", CategorySchema);
