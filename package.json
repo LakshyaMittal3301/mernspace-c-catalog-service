@@ -49,6 +49,7 @@
         "config": "^4.1.1",
         "cross-env": "^10.0.0",
         "express": "^5.1.0",
+        "express-validator": "^7.2.1",
         "http-errors": "^2.0.0",
         "mongoose": "^8.17.2",
         "uuid": "^11.1.0",
