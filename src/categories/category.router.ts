@@ -8,6 +8,7 @@ import { CategoryModel } from "./category.model";
 import authenticate from "../common/middlewares/authenticate";
 import { canAccess } from "../common/middlewares/canAccess";
 import { Roles } from "../common/constants";
+import { updateCategoryValidator } from "./validators/update-category.validator";
 
 const categoryService = new CategoryService(CategoryModel);
 const controller = new CategoryController(logger, categoryService);
@@ -15,5 +16,14 @@ const controller = new CategoryController(logger, categoryService);
 const router = express.Router();
 
 router.post("/", authenticate, canAccess([Roles.ADMIN]), createCategoryValidator, handleValidation, controller.create);
+
+router.patch(
+    "/:id",
+    authenticate,
+    canAccess([Roles.ADMIN]),
+    ...updateCategoryValidator,
+    handleValidation,
+    controller.update,
+);
 
 export default router;

@@ -16,8 +16,6 @@ describe("POST /categories", () => {
         // Start in-memory Mongo
         await startTestMongo("catalog_test");
 
-        // Start JWKS mock
-        process.env.JWKS_URI = "http://localhost:5501/.well-known/jwks.json";
         jwks = createJWKSMock("http://localhost:5501");
     });
 

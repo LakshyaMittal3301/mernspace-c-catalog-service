@@ -55,7 +55,10 @@ export type CreateCategoryDto = {
     modificationPresets?: CreateModificationPresetInput[];
 };
 
-/** Public/read DTO remains unchanged (has ids in nested structures) */
+export type UpdateCategoryDto = {
+    name?: string;
+};
+
 export type PublicCategoryDto = {
     id: string;
     name: string;
