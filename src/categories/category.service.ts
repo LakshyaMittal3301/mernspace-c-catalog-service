@@ -7,6 +7,7 @@ import { CategoryArchivedError, CategoryNotFoundError, DuplicateCategoryNameErro
 export interface ICategoryService {
     create(dto: CreateCategoryDto): Promise<PublicCategoryDto>;
     update(id: string, dto: UpdateCategoryDto): Promise<PublicCategoryDto>;
+    softDelete(id: string): Promise<void>;
 }
 
 export class CategoryService implements ICategoryService {
@@ -53,5 +54,17 @@ export class CategoryService implements ICategoryService {
             }
             throw err;
         }
+    }
+
+    async softDelete(id: string): Promise<void> {
+        const res = await this.categoryModel.updateOne(
+            { _id: id, isDeleted: false },
+            { $set: { isDeleted: true, deletedAt: new Date() } },
+        );
+
+        if (res.matchedCount === 1) return;
+        const exists = await this.categoryModel.exists({ _id: id });
+        if (!exists) throw new CategoryNotFoundError(id);
+        return;
     }
 }

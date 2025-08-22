@@ -41,4 +41,16 @@ export default class CategoryController {
             throw err;
         }
     };
+
+    delete = async (req: Request<{ id: string }>, res: Response) => {
+        try {
+            const id = req.params.id;
+            await this.categoryService.softDelete(id);
+            res.sendStatus(204);
+        } catch (err) {
+            if (err instanceof CategoryNotFoundError) throw createHttpError(404, "Category not found");
+            this.logger.error("Error while deleting the category", { errror: err });
+            throw err;
+        }
+    };
 }

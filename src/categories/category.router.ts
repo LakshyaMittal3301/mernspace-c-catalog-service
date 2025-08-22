@@ -9,6 +9,7 @@ import authenticate from "../common/middlewares/authenticate";
 import { canAccess } from "../common/middlewares/canAccess";
 import { Roles } from "../common/constants";
 import { updateCategoryValidator } from "./validators/update-category.validator";
+import { deleteCategoryValidator } from "./validators/delete-category.validator";
 
 const categoryService = new CategoryService(CategoryModel);
 const controller = new CategoryController(logger, categoryService);
@@ -26,4 +27,12 @@ router.patch(
     controller.update,
 );
 
+router.delete(
+    "/:id",
+    authenticate,
+    canAccess([Roles.ADMIN]),
+    deleteCategoryValidator,
+    handleValidation,
+    controller.delete,
+);
 export default router;
