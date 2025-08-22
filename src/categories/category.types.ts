@@ -5,4 +5,6 @@ export interface Category {
     name: string;
     attributes: AttributeDefinition[];
     modificationPresets: ModificationPreset[];
+    isDeleted: boolean;
+    deletedAt?: Date;
 }

@@ -1,6 +1,5 @@
 import { Schema, model, HydratedDocument } from "mongoose";
 import { randomBytes } from "crypto";
-// ...
 
 import { Category } from "./category.types";
 
@@ -128,12 +127,16 @@ const CheckboxModificationSchema = new Schema(
 /* ---------- Category ---------- */
 const CategorySchema = new Schema<Category>(
     {
-        name: { type: String, required: true, unique: true },
+        name: { type: String, required: true },
         attributes: { type: [AttributeDefBaseSchema], default: [] },
         modificationPresets: { type: [ModificationPresetBaseSchema], default: [] },
+        isDeleted: { type: Boolean, default: false },
+        deletedAt: { type: Date },
     },
     { timestamps: true },
 );
+
+CategorySchema.index({ name: 1 }, { unique: true, partialFilterExpression: { isDeleted: false } });
 
 /* Array discriminators */
 (CategorySchema.path("attributes") as any).discriminator("switch", SwitchDefSchema);

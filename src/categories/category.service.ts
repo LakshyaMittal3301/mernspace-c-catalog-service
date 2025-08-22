@@ -13,7 +13,12 @@ export class CategoryService implements ICategoryService {
 
     async create(dto: CreateCategoryDto): Promise<PublicCategoryDto> {
         try {
-            const created = await this.categoryModel.create(dto);
+            const data = {
+                name: dto.name,
+                attributes: dto.attributes,
+                modificationPresets: dto.modificationPresets,
+            };
+            const created = await this.categoryModel.create(data);
             return toPublicCategoryDto(created);
         } catch (err: any) {
             if (err?.code === 11000 && (err?.keyPattern?.name || err?.keyValue?.name)) {
