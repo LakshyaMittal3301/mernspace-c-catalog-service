@@ -1,8 +1,10 @@
 import { Schema, model, HydratedDocument } from "mongoose";
-import { nanoid } from "nanoid";
+import { randomBytes } from "crypto";
+// ...
+
 import { Category } from "./category.types";
 
-const genId = () => nanoid(10);
+const genId = () => randomBytes(8).toString("base64url");
 
 const AttributeOptionSchema = new Schema(
     {
