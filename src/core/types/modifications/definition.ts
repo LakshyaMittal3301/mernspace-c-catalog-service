@@ -5,7 +5,7 @@ export type ModificationDefOption = BaseModificationOptions & {
 };
 
 export type RadioModificationDef = RadioModificationGroup & {
-    pricingMode?: "base" | "delta";
+    isBase?: boolean;
     options: ModificationDefOption[];
 };
 
