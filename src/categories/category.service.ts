@@ -25,7 +25,13 @@ import {
     UpdateAttributeOptionDto,
     SetAttributeDefaultDto,
 } from "./attribute.dto";
-import { CreatePresetDto, UpdatePresetDto } from "./preset.dto";
+import {
+    AddPresetOptionsDto,
+    CreatePresetDto,
+    SetPresetDefaultDto,
+    UpdatePresetDto,
+    UpdatePresetOptionDto,
+} from "./preset.dto";
 
 export interface ICategoryService {
     create(dto: CreateCategoryDto): Promise<PublicCategoryDto>;
@@ -48,6 +54,15 @@ export interface ICategoryService {
     addPreset(id: string, dto: CreatePresetDto): Promise<PublicCategoryDto>;
     updatePreset(id: string, presetId: string, dto: UpdatePresetDto): Promise<PublicCategoryDto>;
     deletePreset(id: string, presetId: string): Promise<void>;
+    addPresetOptions(categoryId: string, presetId: string, dto: AddPresetOptionsDto): Promise<PublicCategoryDto>;
+    updatePresetOption(
+        id: string,
+        presetId: string,
+        optId: string,
+        dto: UpdatePresetOptionDto,
+    ): Promise<PublicCategoryDto>;
+    deletePresetOption(id: string, presetId: string, optId: string): Promise<void>;
+    setPresetDefault(id: string, presetId: string, dto: SetPresetDefaultDto): Promise<PublicCategoryDto>;
 }
 
 export class CategoryService implements ICategoryService {
@@ -339,6 +354,120 @@ export class CategoryService implements ICategoryService {
             await cat.save();
         }
     }
+
+    async addPresetOptions(id: string, presetId: string, dto: AddPresetOptionsDto): Promise<PublicCategoryDto> {
+        const cat = await this.loadCategoryForWrite(id);
+        const p: any = cat.modificationPresets.find((x: any) => x.id === presetId && x.isDeleted !== true);
+        if (!p) throw new PresetNotFoundError(presetId);
+
+        // Presets support radio/checkbox only; for checkbox, max must not exceed active options after add.
+        // (For radio no fixed limit, but labels should be valid; dedupe can be enforced in model if desired.)
+
+        dto.options.forEach((o) => p.options.push({ label: o.label }));
+
+        // Checkbox bounds vs ACTIVE options
+        if (p.kind === "checkbox") {
+            const active = p.options.filter((o: any) => !o.isDeleted);
+            const min = p.minSelected ?? 0;
+            const max = p.maxSelected ?? active.length;
+            if (min < 0 || max < 0 || min > max) {
+                throw new InvalidOperationError("Invalid minSelected/maxSelected for checkbox preset");
+            }
+            if (max > active.length) {
+                throw new InvalidOperationError("maxSelected cannot exceed number of active options");
+            }
+        }
+
+        await cat.save();
+        return toPublicCategoryDto(cat);
+    }
+
+    async updatePresetOption(
+        id: string,
+        presetId: string,
+        optId: string,
+        dto: UpdatePresetOptionDto,
+    ): Promise<PublicCategoryDto> {
+        const cat = await this.loadCategoryForWrite(id);
+        const p: any = cat.modificationPresets.find((x: any) => x.id === presetId && x.isDeleted !== true);
+        if (!p) throw new PresetNotFoundError(presetId);
+
+        const o = p.options.find((x: any) => x.id === optId);
+        if (!o || o.isDeleted) throw new OptionNotFoundError(optId);
+
+        if (
+            (dto as any).id !== undefined ||
+            (dto as any).isDeleted !== undefined ||
+            (dto as any).deletedAt !== undefined
+        ) {
+            throw new InvalidOperationError("Only label is updatable");
+        }
+
+        o.label = dto.label;
+
+        await cat.save();
+        return toPublicCategoryDto(cat);
+    }
+
+    async deletePresetOption(id: string, presetId: string, optId: string): Promise<void> {
+        const cat = await this.loadCategoryForWrite(id);
+        const p: any = cat.modificationPresets.find((x: any) => x.id === presetId);
+        if (!p) throw new PresetNotFoundError(presetId);
+
+        const o = p.options.find((x: any) => x.id === optId);
+        if (!o) throw new OptionNotFoundError(optId);
+
+        if (!o.isDeleted) {
+            o.isDeleted = true;
+            o.deletedAt = new Date();
+
+            // Default semantics for radio: clear default if we deleted it
+            if (p.kind === "radio" && p.defaultOptionId === o.id) {
+                p.defaultOptionId = undefined;
+            }
+
+            // Checkbox bounds vs ACTIVE options after delete
+            if (p.kind === "checkbox") {
+                const active = p.options.filter((x: any) => !x.isDeleted);
+                const min = p.minSelected ?? 0;
+                const max = p.maxSelected ?? active.length;
+                if (max > active.length) {
+                    // shrink max if needed (policy: strict reject vs soft adjust — choose strict)
+                    throw new InvalidOperationError("Deleting this option violates maxSelected constraint");
+                }
+                if (min > max) {
+                    throw new InvalidOperationError("Deleting this option violates min/max constraints");
+                }
+            }
+
+            await cat.save();
+        }
+        // idempotent: already deleted → no-op
+    }
+
+    async setPresetDefault(categoryId: string, presetId: string, dto: SetPresetDefaultDto): Promise<PublicCategoryDto> {
+        const cat = await this.loadCategoryForWrite(categoryId);
+        const p: any = cat.modificationPresets.find((x: any) => x.id === presetId && x.isDeleted !== true);
+        if (!p) throw new PresetNotFoundError(presetId);
+
+        if (p.kind === "checkbox") {
+            // presets do not support default for checkbox
+            throw new InvalidOperationError("Checkbox presets do not support default option");
+        }
+
+        // radio
+        if (dto.optionId === null) {
+            p.defaultOptionId = undefined; // clear
+        } else {
+            const exists = p.options.find((o: any) => o.id === dto.optionId && !o.isDeleted);
+            if (!exists) throw new OptionNotFoundError(dto.optionId);
+            p.defaultOptionId = dto.optionId;
+        }
+
+        await cat.save();
+        return toPublicCategoryDto(cat);
+    }
+
     private async loadCategoryForWrite(id: string) {
         const doc = await this.categoryModel.findById(id);
         if (!doc) throw new CategoryNotFoundError(id);

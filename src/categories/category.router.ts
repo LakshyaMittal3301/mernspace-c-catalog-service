@@ -22,6 +22,10 @@ import { setAttributeDefaultValidator } from "./validators/set-default-option.va
 import { createPresetValidator } from "./validators/create-preset.validator";
 import { updatePresetValidator } from "./validators/update-preset.validator";
 import { deletePresetValidator } from "./validators/delete-preset.validator";
+import { addPresetOptionsValidator } from "./validators/add-preset-options.validator";
+import { updatePresetOptionValidator } from "./validators/update-preset-option.validator";
+import { deletePresetOptionValidator } from "./validators/delete-preset-option";
+import { setPresetDefaultValidator } from "./validators/set-default-preset-option.validator";
 
 const categoryService = new CategoryService(CategoryModel);
 const controller = new CategoryController(logger, categoryService);
@@ -154,6 +158,42 @@ router.delete(
     ...deletePresetValidator,
     handleValidation,
     controller.deletePreset,
+);
+
+router.post(
+    "/:id/presets/:presetId/options",
+    authenticate,
+    canAccess([Roles.ADMIN]),
+    ...addPresetOptionsValidator,
+    handleValidation,
+    controller.addPresetOptions,
+);
+
+router.patch(
+    "/:id/presets/:presetId/options/:optId",
+    authenticate,
+    canAccess([Roles.ADMIN]),
+    ...updatePresetOptionValidator,
+    handleValidation,
+    controller.updatePresetOption,
+);
+
+router.delete(
+    "/:id/presets/:presetId/options/:optId",
+    authenticate,
+    canAccess([Roles.ADMIN]),
+    ...deletePresetOptionValidator,
+    handleValidation,
+    controller.deletePresetOption,
+);
+
+router.post(
+    "/:id/presets/:presetId/default",
+    authenticate,
+    canAccess([Roles.ADMIN]),
+    ...setPresetDefaultValidator,
+    handleValidation,
+    controller.setPresetDefault,
 );
 
 export default router;
