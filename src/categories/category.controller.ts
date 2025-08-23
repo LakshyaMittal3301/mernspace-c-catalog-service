@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { ICategoryService } from "./category.service";
 import { Logger } from "winston";
 import {
+    CreateAttributeInput,
     CreateCategoryDto,
     GetCategoryDto,
     ListCategoryDto,
@@ -103,6 +104,35 @@ export default class CategoryController {
                 throw createHttpError(404, "Category not found");
             }
             this.logger.error("Error while fetching category");
+            throw err;
+        }
+    };
+
+    addAttribute = async (req: Request, res: Response) => {
+        try {
+            // 1) Extract the validated param ONLY from params
+            const { id } = matchedData(req, {
+                locations: ["params"],
+                onlyValidData: true,
+                includeOptionals: true,
+            }) as { id: string };
+
+            // Fallback safety: if still undefined, read from req.params (means validator didn’t match)
+            // if (!id) { throw createHttpError(400, "Invalid category id"); }
+
+            // 2) Extract the validated body ONLY from body
+            const body = matchedData(req, {
+                locations: ["body"],
+                onlyValidData: true,
+                includeOptionals: true,
+            }) as CreateAttributeInput;
+
+            const category = await this.categoryService.addAttribute(id, body);
+            res.status(201).json({ category });
+        } catch (err) {
+            if (err instanceof CategoryNotFoundError) throw createHttpError(404, "Category not found");
+            if (err instanceof CategoryArchivedError) throw createHttpError(409, "Category is archived");
+            this.logger.error("Error adding attribute to category", { error: err });
             throw err;
         }
     };

@@ -1,5 +1,6 @@
 import { Model } from "mongoose";
 import {
+    CreateAttributeInput,
     CreateCategoryDto,
     GetCategoryDto,
     ListCategoryDto,
@@ -16,6 +17,7 @@ export interface ICategoryService {
     softDelete(id: string): Promise<void>;
     list(dto: ListCategoryDto): Promise<PublicCategoryDto[]>;
     get(id: string, dto: GetCategoryDto): Promise<PublicCategoryDto>;
+    addAttribute(id: string, dto: CreateAttributeInput): Promise<PublicCategoryDto>;
 }
 
 export class CategoryService implements ICategoryService {
@@ -88,5 +90,14 @@ export class CategoryService implements ICategoryService {
         if (!doc) throw new CategoryNotFoundError(id);
         if (!dto.includeDeleted && doc.isDeleted) throw new CategoryArchivedError(id);
         return toPublicCategoryDto(doc);
+    }
+
+    async addAttribute(id: string, dto: CreateAttributeInput): Promise<PublicCategoryDto> {
+        const cat = await this.categoryModel.findById(id);
+        if (!cat) throw new CategoryNotFoundError(id);
+        if (cat.isDeleted) throw new CategoryArchivedError(id);
+        (cat as any).attributes.push(dto);
+        await cat.save();
+        return toPublicCategoryDto(cat);
     }
 }

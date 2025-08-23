@@ -12,6 +12,7 @@ import { updateCategoryValidator } from "./validators/update-category.validator"
 import { deleteCategoryValidator } from "./validators/delete-category.validator";
 import { listCategoriesValidator } from "./validators/list-category.validator";
 import { getCategoryValidator } from "./validators/get-category.validator";
+import { createAttributeValidator } from "./validators/create-attribute.validator";
 
 const categoryService = new CategoryService(CategoryModel);
 const controller = new CategoryController(logger, categoryService);
@@ -55,4 +56,14 @@ router.get(
     handleValidation,
     controller.get,
 );
+
+router.post(
+    "/:id/attributes",
+    authenticate,
+    canAccess([Roles.ADMIN]),
+    ...createAttributeValidator,
+    handleValidation,
+    controller.addAttribute,
+);
+
 export default router;
