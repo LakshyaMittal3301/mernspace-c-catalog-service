@@ -59,9 +59,19 @@ export type UpdateCategoryDto = {
     name?: string;
 };
 
+export type ListCategoryDto = {
+    includeDeleted: boolean;
+};
+
+export type GetCategoryDto = {
+    includeDeleted: boolean;
+};
+
 export type PublicCategoryDto = {
     id: string;
     name: string;
     attributes: AttributeDefinition[];
     modificationPresets: ModificationPreset[];
+    isDeleted: boolean;
+    deletedAt?: string;
 };

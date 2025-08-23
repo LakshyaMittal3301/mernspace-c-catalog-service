@@ -10,6 +10,8 @@ import { canAccess } from "../common/middlewares/canAccess";
 import { Roles } from "../common/constants";
 import { updateCategoryValidator } from "./validators/update-category.validator";
 import { deleteCategoryValidator } from "./validators/delete-category.validator";
+import { listCategoriesValidator } from "./validators/list-category.validator";
+import { getCategoryValidator } from "./validators/get-category.validator";
 
 const categoryService = new CategoryService(CategoryModel);
 const controller = new CategoryController(logger, categoryService);
@@ -34,5 +36,23 @@ router.delete(
     deleteCategoryValidator,
     handleValidation,
     controller.delete,
+);
+
+router.get(
+    "/",
+    authenticate,
+    canAccess([Roles.ADMIN, Roles.MANAGER]),
+    listCategoriesValidator,
+    handleValidation,
+    controller.list,
+);
+
+router.get(
+    "/:id",
+    authenticate,
+    canAccess([Roles.ADMIN, Roles.MANAGER]),
+    ...getCategoryValidator,
+    handleValidation,
+    controller.get,
 );
 export default router;
