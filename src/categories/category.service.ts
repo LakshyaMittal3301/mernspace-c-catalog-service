@@ -5,11 +5,19 @@ import {
     GetCategoryDto,
     ListCategoryDto,
     PublicCategoryDto,
+    UpdateAttributeDto,
     UpdateCategoryDto,
 } from "./category.dto";
 import { toPublicCategoryDto } from "./category.mapper";
 import { Category } from "./category.types";
-import { CategoryArchivedError, CategoryNotFoundError, DuplicateCategoryNameError } from "./category.errors";
+import {
+    AttributeNotFoundError,
+    CategoryArchivedError,
+    CategoryNotFoundError,
+    DuplicateCategoryNameError,
+    InvalidOperationError,
+} from "./category.errors";
+import { AttributeDefinition } from "../core/types/attributes";
 
 export interface ICategoryService {
     create(dto: CreateCategoryDto): Promise<PublicCategoryDto>;
@@ -18,6 +26,7 @@ export interface ICategoryService {
     list(dto: ListCategoryDto): Promise<PublicCategoryDto[]>;
     get(id: string, dto: GetCategoryDto): Promise<PublicCategoryDto>;
     addAttribute(id: string, dto: CreateAttributeInput): Promise<PublicCategoryDto>;
+    updateAttribute(categoryId: string, attrId: string, dto: UpdateAttributeDto): Promise<PublicCategoryDto>;
 }
 
 export class CategoryService implements ICategoryService {
@@ -99,5 +108,74 @@ export class CategoryService implements ICategoryService {
         (cat as any).attributes.push(dto);
         await cat.save();
         return toPublicCategoryDto(cat);
+    }
+
+    async updateAttribute(categoryId: string, attrId: string, dto: UpdateAttributeDto): Promise<PublicCategoryDto> {
+        const cat = await this.loadCategoryForWrite(categoryId);
+        const attribute = cat.attributes.find((x) => x.id === attrId && x.isDeleted !== true);
+        if (!attribute) throw new AttributeNotFoundError(attrId);
+
+        if ((dto as any).id !== undefined || (dto as any).kind !== undefined) {
+            throw new InvalidOperationError("id/kind are immutable");
+        }
+        if ((dto as any).options !== undefined || (dto as any).defaultOptionId !== undefined) {
+            throw new InvalidOperationError("options/defaultOptionId cannot be changed here");
+        }
+
+        this.applyAttributeUpdates(attribute, dto);
+
+        await cat.save();
+        return toPublicCategoryDto(cat);
+    }
+
+    private async loadCategoryForWrite(id: string) {
+        const doc = await this.categoryModel.findById(id);
+        if (!doc) throw new CategoryNotFoundError(id);
+        if (doc.isDeleted) throw new CategoryArchivedError(id);
+        return doc;
+    }
+
+    private applyAttributeUpdates(
+        a: AttributeDefinition,
+        dto: { name?: string; isRequired?: boolean; minSelected?: number; maxSelected?: number },
+    ) {
+        // common
+        if (dto.name !== undefined) a.name = dto.name;
+
+        switch (a.kind) {
+            case "radio": {
+                // allow only isRequired on radio
+                if (dto.isRequired !== undefined) a.isRequired = dto.isRequired;
+                // reject checkbox-only fields if present
+                if (dto.minSelected !== undefined || dto.maxSelected !== undefined) {
+                    throw new InvalidOperationError("minSelected/maxSelected apply only to checkbox attributes");
+                }
+                return;
+            }
+
+            case "checkbox": {
+                // allow only min/max on checkbox
+                if (dto.minSelected !== undefined) a.minSelected = dto.minSelected;
+                if (dto.maxSelected !== undefined) a.maxSelected = dto.maxSelected;
+                // reject radio-only field
+                if (dto.isRequired !== undefined) {
+                    throw new InvalidOperationError("isRequired applies only to radio attributes");
+                }
+                return;
+            }
+
+            case "switch": {
+                // nothing extra is updatable on switch (besides name)
+                if (dto.isRequired !== undefined || dto.minSelected !== undefined || dto.maxSelected !== undefined) {
+                    throw new InvalidOperationError("Only 'name' can be updated on switch attributes");
+                }
+                return;
+            }
+
+            default:
+                // exhaustive check for future kinds
+                const _exhaustive: never = a;
+                return _exhaustive;
+        }
     }
 }

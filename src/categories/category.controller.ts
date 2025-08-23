@@ -7,9 +7,16 @@ import {
     GetCategoryDto,
     ListCategoryDto,
     PublicCategoryDto,
+    UpdateAttributeDto,
     UpdateCategoryDto,
 } from "./category.dto";
-import { CategoryArchivedError, CategoryNotFoundError, DuplicateCategoryNameError } from "./category.errors";
+import {
+    AttributeNotFoundError,
+    CategoryArchivedError,
+    CategoryNotFoundError,
+    DuplicateCategoryNameError,
+    InvalidOperationError,
+} from "./category.errors";
 import createHttpError from "http-errors";
 import { isAdmin } from "../common/utils";
 import { matchedData } from "express-validator";
@@ -133,6 +140,38 @@ export default class CategoryController {
             if (err instanceof CategoryNotFoundError) throw createHttpError(404, "Category not found");
             if (err instanceof CategoryArchivedError) throw createHttpError(409, "Category is archived");
             this.logger.error("Error adding attribute to category", { error: err });
+            throw err;
+        }
+    };
+
+    updateAttribute = async (req: Request, res: Response) => {
+        const { id, attrId } = matchedData(req, { locations: ["params"], onlyValidData: true }) as {
+            id: string;
+            attrId: string;
+        };
+        const rawBody = req.body as Record<string, unknown>;
+        const body = matchedData(req, { locations: ["body"], onlyValidData: true, includeOptionals: true });
+
+        // Fallback 400 on truly empty body
+        if (!rawBody || Object.keys(rawBody).length === 0) {
+            throw createHttpError(400, "Request body cannot be empty");
+        }
+
+        // Fallback guard for unknown keys (in case a future validator change misses it)
+        const allowed = new Set(["name", "isRequired", "minSelected", "maxSelected"]);
+        const bad = Object.keys(rawBody).filter((k) => !allowed.has(k));
+        if (bad.length) {
+            throw createHttpError(400, `Field(s) not allowed: ${bad.join(", ")}`);
+        }
+        try {
+            const category = await this.categoryService.updateAttribute(id, attrId, body);
+            res.status(200).json({ category });
+        } catch (err) {
+            if (err instanceof CategoryNotFoundError) throw createHttpError(404, "Category not found");
+            if (err instanceof CategoryArchivedError) throw createHttpError(409, "Category is archived");
+            if (err instanceof AttributeNotFoundError) throw createHttpError(404, "Attribute not found");
+            if (err instanceof InvalidOperationError) throw createHttpError(400, err.message);
+            this.logger.error("Error updating attribute", { err });
             throw err;
         }
     };

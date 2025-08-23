@@ -18,3 +18,17 @@ export class CategoryArchivedError extends Error {
         this.name = "CategoryArchivedError";
     }
 }
+
+export class AttributeNotFoundError extends Error {
+    constructor(id: string) {
+        super(`Attribute does not exist with id ${id}`);
+        this.name = "AttributeNotFoundError";
+    }
+}
+
+export class InvalidOperationError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = "InvalidOperationError";
+    }
+}

@@ -28,6 +28,13 @@ type CreateCheckboxAttribute = CreateBaseAttribute & {
 
 export type CreateAttributeInput = CreateSwitchAttribute | CreateRadioAttribute | CreateCheckboxAttribute;
 
+export type UpdateAttributeDto = {
+    name?: string;
+    isRequired?: boolean;
+    minSelected?: number;
+    maxSelected?: number;
+};
+
 /** Presets: radio can have defaultOptionIndex too */
 type CreateBasePreset = {
     name: string;
