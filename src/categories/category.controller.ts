@@ -15,6 +15,7 @@ import {
     DuplicateCategoryNameError,
     InvalidOperationError,
     OptionNotFoundError,
+    PresetNotFoundError,
 } from "./category.errors";
 import createHttpError from "http-errors";
 import { isAdmin } from "../common/utils";
@@ -25,7 +26,7 @@ import {
     SetAttributeDefaultDto,
     UpdateAttributeOptionDto,
 } from "./attribute.dto";
-import { CreatePresetDto } from "./preset.dto";
+import { CreatePresetDto, UpdatePresetDto } from "./preset.dto";
 
 export default class CategoryController {
     constructor(
@@ -299,6 +300,48 @@ export default class CategoryController {
             if (err instanceof CategoryNotFoundError) throw createHttpError(404, "Category not found");
             if (err instanceof CategoryArchivedError) throw createHttpError(409, "Category is archived");
             this.logger.error("Error creating modification preset", { err });
+            throw err;
+        }
+    };
+
+    updatePreset = async (req: Request, res: Response) => {
+        const { id, presetId } = matchedData(req, { locations: ["params"], onlyValidData: true }) as {
+            id: string;
+            presetId: string;
+        };
+        const body = matchedData(req, {
+            locations: ["body"],
+            onlyValidData: true,
+            includeOptionals: true,
+        }) as UpdatePresetDto;
+
+        try {
+            const category = await this.categoryService.updatePreset(id, presetId, body);
+            res.status(200).json({ category });
+        } catch (err) {
+            if (err instanceof CategoryNotFoundError) throw createHttpError(404, "Category not found");
+            if (err instanceof CategoryArchivedError) throw createHttpError(409, "Category is archived");
+            if (err instanceof PresetNotFoundError) throw createHttpError(404, "Preset not found");
+            if (err instanceof InvalidOperationError) throw createHttpError(400, err.message);
+            this.logger.error("Error updating modification preset", { err });
+            throw err;
+        }
+    };
+
+    deletePreset = async (req: Request, res: Response) => {
+        const { id, presetId } = matchedData(req, { locations: ["params"], onlyValidData: true }) as {
+            id: string;
+            presetId: string;
+        };
+
+        try {
+            await this.categoryService.deletePreset(id, presetId);
+            res.sendStatus(204);
+        } catch (err) {
+            if (err instanceof CategoryNotFoundError) throw createHttpError(404, "Category not found");
+            if (err instanceof CategoryArchivedError) throw createHttpError(409, "Category is archived");
+            if (err instanceof PresetNotFoundError) throw createHttpError(404, "Preset not found");
+            this.logger.error("Error deleting modification preset", { err });
             throw err;
         }
     };

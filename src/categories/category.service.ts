@@ -15,6 +15,7 @@ import {
     DuplicateCategoryNameError,
     InvalidOperationError,
     OptionNotFoundError,
+    PresetNotFoundError,
 } from "./category.errors";
 import { AttributeDefinition } from "../core/types/attributes";
 import {
@@ -24,7 +25,7 @@ import {
     UpdateAttributeOptionDto,
     SetAttributeDefaultDto,
 } from "./attribute.dto";
-import { CreatePresetDto } from "./preset.dto";
+import { CreatePresetDto, UpdatePresetDto } from "./preset.dto";
 
 export interface ICategoryService {
     create(dto: CreateCategoryDto): Promise<PublicCategoryDto>;
@@ -45,6 +46,8 @@ export interface ICategoryService {
     deleteAttributeOption(id: string, attrId: string, optId: string): Promise<void>;
     setAttributeDefault(id: string, attrId: string, dto: SetAttributeDefaultDto): Promise<PublicCategoryDto>;
     addPreset(id: string, dto: CreatePresetDto): Promise<PublicCategoryDto>;
+    updatePreset(id: string, presetId: string, dto: UpdatePresetDto): Promise<PublicCategoryDto>;
+    deletePreset(id: string, presetId: string): Promise<void>;
 }
 
 export class CategoryService implements ICategoryService {
@@ -279,6 +282,63 @@ export class CategoryService implements ICategoryService {
         return toPublicCategoryDto(cat);
     }
 
+    async updatePreset(id: string, presetId: string, dto: UpdatePresetDto): Promise<PublicCategoryDto> {
+        const cat = await this.loadCategoryForWrite(id);
+
+        const p: any = cat.modificationPresets.find((x: any) => x.id === presetId && x.isDeleted !== true);
+        if (!p) throw new PresetNotFoundError(presetId);
+
+        if ((dto as any).id !== undefined || (dto as any).kind !== undefined) {
+            throw new InvalidOperationError("id/kind are immutable");
+        }
+
+        // Apply updates based on kind
+        if (dto.name !== undefined) p.name = dto.name;
+
+        if (p.kind === "radio") {
+            if (dto.isRequired !== undefined) p.isRequired = dto.isRequired;
+            if (dto.minSelected !== undefined || dto.maxSelected !== undefined) {
+                throw new InvalidOperationError("minSelected/maxSelected apply only to checkbox presets");
+            }
+        } else if (p.kind === "checkbox") {
+            if (dto.isRequired !== undefined) {
+                throw new InvalidOperationError("isRequired applies only to radio presets");
+            }
+            if (dto.minSelected !== undefined) p.minSelected = dto.minSelected;
+            if (dto.maxSelected !== undefined) p.maxSelected = dto.maxSelected;
+
+            // Authoritative bounds vs ACTIVE options
+            const activeOpts = Array.isArray(p.options) ? p.options.filter((o: any) => !o.isDeleted) : [];
+            const min = p.minSelected ?? 0;
+            const max = p.maxSelected ?? activeOpts.length;
+            if (min < 0 || max < 0 || min > max) {
+                throw new InvalidOperationError("Invalid minSelected/maxSelected for checkbox preset");
+            }
+            if (max > activeOpts.length) {
+                throw new InvalidOperationError("maxSelected cannot exceed number of active options");
+            }
+        } else {
+            // Currently we support only radio/checkbox for presets
+            throw new InvalidOperationError("Unsupported preset kind");
+        }
+
+        await cat.save();
+        return toPublicCategoryDto(cat);
+    }
+
+    async deletePreset(id: string, presetId: string): Promise<void> {
+        const cat = await this.loadCategoryForWrite(id);
+
+        const p: any = cat.modificationPresets.find((x: any) => x.id === presetId);
+        if (!p) throw new PresetNotFoundError(presetId);
+
+        // Idempotent soft delete
+        if (!p.isDeleted) {
+            p.isDeleted = true;
+            p.deletedAt = new Date();
+            await cat.save();
+        }
+    }
     private async loadCategoryForWrite(id: string) {
         const doc = await this.categoryModel.findById(id);
         if (!doc) throw new CategoryNotFoundError(id);

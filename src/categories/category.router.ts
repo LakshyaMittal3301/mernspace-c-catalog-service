@@ -20,6 +20,8 @@ import { updateAttributeOptionValidator } from "./validators/update-attribute-op
 import { deleteAttributeOptionValidator } from "./validators/delete-attribute-option";
 import { setAttributeDefaultValidator } from "./validators/set-default-option.validator";
 import { createPresetValidator } from "./validators/create-preset.validator";
+import { updatePresetValidator } from "./validators/update-preset.validator";
+import { deletePresetValidator } from "./validators/delete-preset.validator";
 
 const categoryService = new CategoryService(CategoryModel);
 const controller = new CategoryController(logger, categoryService);
@@ -134,6 +136,24 @@ router.post(
     ...createPresetValidator,
     handleValidation,
     controller.addPreset,
+);
+
+router.patch(
+    "/:id/presets/:presetId",
+    authenticate,
+    canAccess([Roles.ADMIN]),
+    ...updatePresetValidator,
+    handleValidation,
+    controller.updatePreset,
+);
+
+router.delete(
+    "/:id/presets/:presetId",
+    authenticate,
+    canAccess([Roles.ADMIN]),
+    ...deletePresetValidator,
+    handleValidation,
+    controller.deletePreset,
 );
 
 export default router;

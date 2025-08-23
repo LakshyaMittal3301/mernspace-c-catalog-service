@@ -39,3 +39,10 @@ export class OptionNotFoundError extends Error {
         this.name = "OptionNotFoundError";
     }
 }
+
+export class PresetNotFoundError extends Error {
+    constructor(id: string) {
+        super(`Preset with id does not exist ${id}`);
+        this.name = "PresetNotFoundError";
+    }
+}

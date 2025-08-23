@@ -17,3 +17,22 @@ export type CreateCheckboxPresetDto = CreatePresetBase & {
 };
 
 export type CreatePresetDto = CreateRadioPresetDto | CreateCheckboxPresetDto;
+
+export type UpdatePresetDto = {
+    name?: string; // any kind
+    isRequired?: boolean; // radio only
+    minSelected?: number; // checkbox only
+    maxSelected?: number; // checkbox only
+};
+
+export type AddPresetOptionsDto = {
+    options: Array<{ label: string }>;
+};
+
+export type UpdatePresetOptionDto = {
+    label: string;
+};
+
+export type SetPresetDefaultDto = {
+    optionId: string | null; // radio: string|null (clear allowed); checkbox: must be null → reject in service
+};
