@@ -175,4 +175,22 @@ export default class CategoryController {
             throw err;
         }
     };
+
+    deleteAttribute = async (req: Request, res: Response) => {
+        const { id, attrId } = matchedData(req, { locations: ["params"], onlyValidData: true }) as {
+            id: string;
+            attrId: string;
+        };
+
+        try {
+            await this.categoryService.deleteAttribute(id, attrId);
+            res.sendStatus(204);
+        } catch (err) {
+            if (err instanceof CategoryNotFoundError) throw createHttpError(404, "Category not found");
+            if (err instanceof CategoryArchivedError) throw createHttpError(409, "Category is archived");
+            if (err instanceof AttributeNotFoundError) throw createHttpError(404, "Attribute not found");
+            this.logger.error("Error deleting attribute", { err });
+            throw err;
+        }
+    };
 }

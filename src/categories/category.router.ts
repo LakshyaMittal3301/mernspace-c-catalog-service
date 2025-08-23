@@ -14,6 +14,7 @@ import { listCategoriesValidator } from "./validators/list-category.validator";
 import { getCategoryValidator } from "./validators/get-category.validator";
 import { createAttributeValidator } from "./validators/create-attribute.validator";
 import { updateAttributeValidator } from "./validators/update-attribute.validator";
+import { deleteAttributeValidator } from "./validators/delete-attribute.validator";
 
 const categoryService = new CategoryService(CategoryModel);
 const controller = new CategoryController(logger, categoryService);
@@ -71,7 +72,18 @@ router.patch(
     "/:id/attributes/:attrId",
     authenticate,
     canAccess([Roles.ADMIN]),
-    updateAttributeValidator,
+    ...updateAttributeValidator,
+    handleValidation,
     controller.updateAttribute,
 );
+
+router.delete(
+    "/:id/attributes/:attrId",
+    authenticate,
+    canAccess([Roles.ADMIN]),
+    ...deleteAttributeValidator,
+    handleValidation,
+    controller.deleteAttribute,
+);
+
 export default router;

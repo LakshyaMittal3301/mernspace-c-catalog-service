@@ -187,6 +187,6 @@ describe("PATCH /categories/:id/attributes/:attrId", () => {
             .patch(`/categories/not-an-oid/attributes/foo`)
             .set("Cookie", [`accessToken=${t}`])
             .send({ name: "X" })
-            .expect(404);
+            .expect(400);
     });
 });

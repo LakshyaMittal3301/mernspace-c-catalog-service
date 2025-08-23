@@ -27,6 +27,7 @@ export interface ICategoryService {
     get(id: string, dto: GetCategoryDto): Promise<PublicCategoryDto>;
     addAttribute(id: string, dto: CreateAttributeInput): Promise<PublicCategoryDto>;
     updateAttribute(categoryId: string, attrId: string, dto: UpdateAttributeDto): Promise<PublicCategoryDto>;
+    deleteAttribute(id: string, attrId: string): Promise<void>;
 }
 
 export class CategoryService implements ICategoryService {
@@ -126,6 +127,18 @@ export class CategoryService implements ICategoryService {
 
         await cat.save();
         return toPublicCategoryDto(cat);
+    }
+
+    async deleteAttribute(id: string, attrId: string): Promise<void> {
+        const cat = await this.loadCategoryForWrite(id);
+        const attribute = cat.attributes.find((x: any) => x.id === attrId);
+        if (!attribute) throw new AttributeNotFoundError(attrId);
+
+        if (attribute.isDeleted) return;
+
+        attribute.isDeleted = true;
+        attribute.deletedAt = new Date();
+        await cat.save();
     }
 
     private async loadCategoryForWrite(id: string) {
