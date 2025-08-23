@@ -55,7 +55,8 @@ const ModificationBaseSchema = new Schema(
 const RadioModificationSchema = new Schema(
     {
         options: { type: [ModOptionSchema], default: [] },
-        defaultOptionId: { type: String }, // required when isBase=true; optional otherwise
+        defaultOptionId: { type: String },
+        defaultOptionIndex: { type: Number, select: false },
     },
     { _id: false, strict: true },
 );
@@ -122,6 +123,16 @@ const uniqueOptionIds = (def: any) => {
 
 const activeOptions = (def: any) => (def?.options ?? []).filter((o: any) => !o.isDeleted);
 
+const resolveDefaultFromIndex = (group: any) => {
+    if (typeof group.defaultOptionIndex === "number") {
+        const idx = group.defaultOptionIndex;
+        const opt = (group.options ?? [])[idx];
+        if (!opt) throw new Error(`defaultOptionIndex out of range for modification '${group.name ?? "(unnamed)"}'`);
+        group.defaultOptionId = opt.id;
+    }
+    group.defaultOptionIndex = undefined; // never persist the index
+};
+
 /* ---------- Pre-validate: assign ids, enforce uniqueness, validate ---------- */
 ProductSchema.pre("validate", async function (next) {
     try {
@@ -132,6 +143,9 @@ ProductSchema.pre("validate", async function (next) {
 
         // 1) Ensure IDs exist
         for (const m of mods) ensureIds(m);
+        for (const m of mods) {
+            if (m.kind === "radio") resolveDefaultFromIndex(m);
+        }
 
         // 2) Uniqueness of modification ids and option ids
         if (!uniqueIds(mods)) return next(new Error("Duplicate modification ids"));
