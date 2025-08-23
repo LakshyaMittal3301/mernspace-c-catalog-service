@@ -149,20 +149,8 @@ export default class CategoryController {
             id: string;
             attrId: string;
         };
-        const rawBody = req.body as Record<string, unknown>;
         const body = matchedData(req, { locations: ["body"], onlyValidData: true, includeOptionals: true });
 
-        // Fallback 400 on truly empty body
-        if (!rawBody || Object.keys(rawBody).length === 0) {
-            throw createHttpError(400, "Request body cannot be empty");
-        }
-
-        // Fallback guard for unknown keys (in case a future validator change misses it)
-        const allowed = new Set(["name", "isRequired", "minSelected", "maxSelected"]);
-        const bad = Object.keys(rawBody).filter((k) => !allowed.has(k));
-        if (bad.length) {
-            throw createHttpError(400, `Field(s) not allowed: ${bad.join(", ")}`);
-        }
         try {
             const category = await this.categoryService.updateAttribute(id, attrId, body);
             res.status(200).json({ category });
