@@ -19,6 +19,7 @@ import { addAttributeOptionsValidator } from "./validators/add-attribute-options
 import { updateAttributeOptionValidator } from "./validators/update-attribute-option.validator";
 import { deleteAttributeOptionValidator } from "./validators/delete-attribute-option";
 import { setAttributeDefaultValidator } from "./validators/set-default-option.validator";
+import { createPresetValidator } from "./validators/create-preset.validator";
 
 const categoryService = new CategoryService(CategoryModel);
 const controller = new CategoryController(logger, categoryService);
@@ -125,4 +126,14 @@ router.post(
     handleValidation,
     controller.setAttributeDefault,
 );
+
+router.post(
+    "/:id/presets",
+    authenticate,
+    canAccess([Roles.ADMIN]),
+    ...createPresetValidator,
+    handleValidation,
+    controller.addPreset,
+);
+
 export default router;

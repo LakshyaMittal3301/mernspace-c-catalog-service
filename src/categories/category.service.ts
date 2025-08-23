@@ -24,6 +24,7 @@ import {
     UpdateAttributeOptionDto,
     SetAttributeDefaultDto,
 } from "./attribute.dto";
+import { CreatePresetDto } from "./preset.dto";
 
 export interface ICategoryService {
     create(dto: CreateCategoryDto): Promise<PublicCategoryDto>;
@@ -43,6 +44,7 @@ export interface ICategoryService {
     ): Promise<PublicCategoryDto>;
     deleteAttributeOption(id: string, attrId: string, optId: string): Promise<void>;
     setAttributeDefault(id: string, attrId: string, dto: SetAttributeDefaultDto): Promise<PublicCategoryDto>;
+    addPreset(id: string, dto: CreatePresetDto): Promise<PublicCategoryDto>;
 }
 
 export class CategoryService implements ICategoryService {
@@ -266,6 +268,14 @@ export class CategoryService implements ICategoryService {
         }
 
         await (cat as any).save();
+        return toPublicCategoryDto(cat);
+    }
+
+    async addPreset(id: string, dto: CreatePresetDto): Promise<PublicCategoryDto> {
+        const cat = await this.loadCategoryForWrite(id);
+        (cat as any).modificationPresets.push(dto);
+
+        await cat.save();
         return toPublicCategoryDto(cat);
     }
 

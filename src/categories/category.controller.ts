@@ -25,6 +25,7 @@ import {
     SetAttributeDefaultDto,
     UpdateAttributeOptionDto,
 } from "./attribute.dto";
+import { CreatePresetDto } from "./preset.dto";
 
 export default class CategoryController {
     constructor(
@@ -279,6 +280,25 @@ export default class CategoryController {
             if (err instanceof OptionNotFoundError) throw createHttpError(404, "Option not found");
             if (err instanceof InvalidOperationError) throw createHttpError(400, err.message);
             this.logger.error("Error setting attribute default", { err });
+            throw err;
+        }
+    };
+
+    addPreset = async (req: Request, res: Response) => {
+        const { id } = matchedData(req, { locations: ["params"], onlyValidData: true }) as { id: string };
+        const body = matchedData(req, {
+            locations: ["body"],
+            onlyValidData: true,
+            includeOptionals: true,
+        }) as CreatePresetDto;
+
+        try {
+            const category = await this.categoryService.addPreset(id, body);
+            res.status(201).json({ category });
+        } catch (err) {
+            if (err instanceof CategoryNotFoundError) throw createHttpError(404, "Category not found");
+            if (err instanceof CategoryArchivedError) throw createHttpError(409, "Category is archived");
+            this.logger.error("Error creating modification preset", { err });
             throw err;
         }
     };
