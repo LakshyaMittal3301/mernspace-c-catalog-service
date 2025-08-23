@@ -32,3 +32,10 @@ export class InvalidOperationError extends Error {
         this.name = "InvalidOperationError";
     }
 }
+
+export class OptionNotFoundError extends Error {
+    constructor(id: string) {
+        super(`Option with id does not exist ${id}`);
+        this.name = "OptionNotFoundError";
+    }
+}

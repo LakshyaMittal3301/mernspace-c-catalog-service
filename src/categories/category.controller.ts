@@ -2,12 +2,15 @@ import { Request, Response } from "express";
 import { ICategoryService } from "./category.service";
 import { Logger } from "winston";
 import {
+    AddAttributeOptionsDto,
     CreateAttributeInput,
     CreateCategoryDto,
     GetCategoryDto,
     ListCategoryDto,
     PublicCategoryDto,
+    SetAttributeDefaultDto,
     UpdateAttributeDto,
+    UpdateAttributeOptionDto,
     UpdateCategoryDto,
 } from "./category.dto";
 import {
@@ -16,6 +19,7 @@ import {
     CategoryNotFoundError,
     DuplicateCategoryNameError,
     InvalidOperationError,
+    OptionNotFoundError,
 } from "./category.errors";
 import createHttpError from "http-errors";
 import { isAdmin } from "../common/utils";
@@ -178,6 +182,102 @@ export default class CategoryController {
             if (err instanceof CategoryArchivedError) throw createHttpError(409, "Category is archived");
             if (err instanceof AttributeNotFoundError) throw createHttpError(404, "Attribute not found");
             this.logger.error("Error deleting attribute", { err });
+            throw err;
+        }
+    };
+
+    addAttributeOptions = async (req: Request, res: Response) => {
+        const { id, attrId } = matchedData(req, { locations: ["params"], onlyValidData: true }) as {
+            id: string;
+            attrId: string;
+        };
+        const body = matchedData(req, {
+            locations: ["body"],
+            onlyValidData: true,
+            includeOptionals: true,
+        }) as AddAttributeOptionsDto;
+
+        try {
+            const category = await this.categoryService.addAttributeOptions(id, attrId, body);
+            res.status(200).json({ category });
+        } catch (err) {
+            if (err instanceof CategoryNotFoundError) throw createHttpError(404, "Category not found");
+            if (err instanceof CategoryArchivedError) throw createHttpError(409, "Category is archived");
+            if (err instanceof AttributeNotFoundError) throw createHttpError(404, "Attribute not found");
+            if (err instanceof InvalidOperationError) throw createHttpError(400, err.message);
+            this.logger.error("Error adding attribute options", { err });
+            throw err;
+        }
+    };
+
+    updateAttributeOption = async (req: Request, res: Response) => {
+        const { id, attrId, optId } = matchedData(req, { locations: ["params"], onlyValidData: true }) as {
+            id: string;
+            attrId: string;
+            optId: string;
+        };
+        const body = matchedData(req, {
+            locations: ["body"],
+            onlyValidData: true,
+            includeOptionals: true,
+        }) as UpdateAttributeOptionDto;
+
+        try {
+            const category = await this.categoryService.updateAttributeOption(id, attrId, optId, body);
+            res.status(200).json({ category });
+        } catch (err) {
+            if (err instanceof CategoryNotFoundError) throw createHttpError(404, "Category not found");
+            if (err instanceof CategoryArchivedError) throw createHttpError(409, "Category is archived");
+            if (err instanceof AttributeNotFoundError) throw createHttpError(404, "Attribute not found");
+            if (err instanceof OptionNotFoundError) throw createHttpError(404, "Option not found");
+            if (err instanceof InvalidOperationError) throw createHttpError(400, err.message);
+            this.logger.error("Error updating attribute option", { err });
+            throw err;
+        }
+    };
+
+    deleteAttributeOption = async (req: Request, res: Response) => {
+        const { id, attrId, optId } = matchedData(req, { locations: ["params"], onlyValidData: true }) as {
+            id: string;
+            attrId: string;
+            optId: string;
+        };
+
+        try {
+            await this.categoryService.deleteAttributeOption(id, attrId, optId);
+            res.sendStatus(204);
+        } catch (err) {
+            if (err instanceof CategoryNotFoundError) throw createHttpError(404, "Category not found");
+            if (err instanceof CategoryArchivedError) throw createHttpError(409, "Category is archived");
+            if (err instanceof AttributeNotFoundError) throw createHttpError(404, "Attribute not found");
+            if (err instanceof OptionNotFoundError) throw createHttpError(404, "Option not found");
+            if (err instanceof InvalidOperationError) throw createHttpError(400, err.message);
+            this.logger.error("Error deleting attribute option", { err });
+            throw err;
+        }
+    };
+
+    setAttributeDefault = async (req: Request, res: Response) => {
+        const { id, attrId } = matchedData(req, { locations: ["params"], onlyValidData: true }) as {
+            id: string;
+            attrId: string;
+        };
+        const body = matchedData(req, {
+            locations: ["body"],
+            onlyValidData: true,
+            includeOptionals: true,
+        }) as SetAttributeDefaultDto;
+
+        try {
+            const category = await this.categoryService.setAttributeDefault(id, attrId, body);
+            res.status(200).json({ category });
+        } catch (err) {
+            if (err instanceof CategoryNotFoundError) throw createHttpError(404, "Category not found");
+            if (err instanceof CategoryArchivedError) throw createHttpError(409, "Category is archived");
+            if (err instanceof AttributeNotFoundError) throw createHttpError(404, "Attribute not found");
+            if (err instanceof OptionNotFoundError) throw createHttpError(404, "Option not found");
+            if (err instanceof InvalidOperationError) throw createHttpError(400, err.message);
+            this.logger.error("Error setting attribute default", { err });
             throw err;
         }
     };

@@ -15,6 +15,10 @@ import { getCategoryValidator } from "./validators/get-category.validator";
 import { createAttributeValidator } from "./validators/create-attribute.validator";
 import { updateAttributeValidator } from "./validators/update-attribute.validator";
 import { deleteAttributeValidator } from "./validators/delete-attribute.validator";
+import { addAttributeOptionsValidator } from "./validators/add-attribute-options.validator";
+import { updateAttributeOptionValidator } from "./validators/update-attribute-option.validator";
+import { deleteAttributeOptionValidator } from "./validators/delete-attribute-option";
+import { setAttributeDefaultValidator } from "./validators/set-default-option.validator";
 
 const categoryService = new CategoryService(CategoryModel);
 const controller = new CategoryController(logger, categoryService);
@@ -86,4 +90,39 @@ router.delete(
     controller.deleteAttribute,
 );
 
+router.post(
+    "/:id/attributes/:attrId/options",
+    authenticate,
+    canAccess([Roles.ADMIN]),
+    ...addAttributeOptionsValidator,
+    handleValidation,
+    controller.addAttributeOptions,
+);
+
+router.patch(
+    "/:id/attributes/:attrId/options/:optId",
+    authenticate,
+    canAccess([Roles.ADMIN]),
+    ...updateAttributeOptionValidator,
+    handleValidation,
+    controller.updateAttributeOption,
+);
+
+router.delete(
+    "/:id/attributes/:attrId/options/:optId",
+    authenticate,
+    canAccess([Roles.ADMIN]),
+    ...deleteAttributeOptionValidator,
+    handleValidation,
+    controller.deleteAttributeOption,
+);
+
+router.post(
+    "/:id/attributes/:attrId/default",
+    authenticate,
+    canAccess([Roles.ADMIN]),
+    ...setAttributeDefaultValidator,
+    handleValidation,
+    controller.setAttributeDefault,
+);
 export default router;

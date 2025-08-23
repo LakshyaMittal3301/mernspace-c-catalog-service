@@ -1,11 +1,14 @@
 import { Model } from "mongoose";
 import {
+    AddAttributeOptionsDto,
     CreateAttributeInput,
     CreateCategoryDto,
     GetCategoryDto,
     ListCategoryDto,
     PublicCategoryDto,
+    SetAttributeDefaultDto,
     UpdateAttributeDto,
+    UpdateAttributeOptionDto,
     UpdateCategoryDto,
 } from "./category.dto";
 import { toPublicCategoryDto } from "./category.mapper";
@@ -16,6 +19,7 @@ import {
     CategoryNotFoundError,
     DuplicateCategoryNameError,
     InvalidOperationError,
+    OptionNotFoundError,
 } from "./category.errors";
 import { AttributeDefinition } from "../core/types/attributes";
 
@@ -28,6 +32,15 @@ export interface ICategoryService {
     addAttribute(id: string, dto: CreateAttributeInput): Promise<PublicCategoryDto>;
     updateAttribute(categoryId: string, attrId: string, dto: UpdateAttributeDto): Promise<PublicCategoryDto>;
     deleteAttribute(id: string, attrId: string): Promise<void>;
+    addAttributeOptions(id: string, attrId: string, dto: AddAttributeOptionsDto): Promise<PublicCategoryDto>;
+    updateAttributeOption(
+        id: string,
+        attrId: string,
+        optId: string,
+        dto: UpdateAttributeOptionDto,
+    ): Promise<PublicCategoryDto>;
+    deleteAttributeOption(id: string, attrId: string, optId: string): Promise<void>;
+    setAttributeDefault(id: string, attrId: string, dto: SetAttributeDefaultDto): Promise<PublicCategoryDto>;
 }
 
 export class CategoryService implements ICategoryService {
@@ -139,6 +152,119 @@ export class CategoryService implements ICategoryService {
         attribute.isDeleted = true;
         attribute.deletedAt = new Date();
         await cat.save();
+    }
+
+    async addAttributeOptions(id: string, attrId: string, dto: AddAttributeOptionsDto): Promise<PublicCategoryDto> {
+        const cat = await this.loadCategoryForWrite(id);
+        const a = cat.attributes.find((x: any) => x.id === attrId && x.isDeleted !== true) as any;
+        if (!a) throw new AttributeNotFoundError(attrId);
+
+        if (a.kind === "switch") {
+            const active = a.options.filter((o: any) => !o.isDeleted).length;
+            if (active + dto.options.length > 2) {
+                throw new InvalidOperationError("Switch must have exactly 2 options");
+            }
+        }
+
+        dto.options.forEach((o) => a.options.push({ label: o.label }));
+
+        await cat.save();
+        return toPublicCategoryDto(cat);
+    }
+
+    async updateAttributeOption(
+        id: string,
+        attrId: string,
+        optId: string,
+        dto: UpdateAttributeOptionDto,
+    ): Promise<PublicCategoryDto> {
+        const cat = await this.loadCategoryForWrite(id);
+        const a = cat.attributes.find((x: any) => x.id === attrId && x.isDeleted !== true) as any;
+        if (!a) throw new AttributeNotFoundError(attrId);
+
+        const o = a.options.find((x: any) => x.id === optId);
+        if (!o) throw new OptionNotFoundError(optId);
+        if (o.isDeleted) throw new OptionNotFoundError(optId); // treat deleted as missing for updates
+
+        if ((dto as any).id !== undefined) throw new InvalidOperationError("option id is immutable");
+        if ((dto as any).isDeleted !== undefined || (dto as any).deletedAt !== undefined) {
+            throw new InvalidOperationError("isDeleted/deletedAt cannot be set");
+        }
+
+        o.label = dto.label;
+
+        await cat.save();
+        return toPublicCategoryDto(cat);
+    }
+
+    async deleteAttributeOption(id: string, attrId: string, optId: string): Promise<void> {
+        const cat = await this.loadCategoryForWrite(id);
+        const a = cat.attributes.find((x: any) => x.id === attrId) as any;
+        if (!a) throw new AttributeNotFoundError(attrId);
+
+        const o = a.options.find((x: any) => x.id === optId);
+        if (!o) throw new OptionNotFoundError(optId);
+
+        // For switch: enforce 2 active options
+        const activeCount = a.options.filter((x: any) => !x.isDeleted).length;
+        if (a.kind === "switch" && !o.isDeleted && activeCount <= 2) {
+            // Deleting would leave <2 active; reject to keep invariant (admin should replace instead)
+            throw new InvalidOperationError("Cannot delete switch option: switch must have exactly 2 active options");
+        }
+
+        // Idempotent soft-delete
+        if (!o.isDeleted) {
+            o.isDeleted = true;
+            o.deletedAt = new Date();
+
+            // Default semantics
+            if ((a.kind === "radio" || a.kind === "switch") && a.defaultOptionId === o.id) {
+                if (a.kind === "radio") {
+                    a.defaultOptionId = undefined; // cleared
+                } else {
+                    // switch → reassign default to the other active option (should exist)
+                    const other = a.options.find((x: any) => !x.isDeleted && x.id !== o.id);
+                    if (other) a.defaultOptionId = other.id;
+                }
+            }
+            await cat.save();
+        }
+    }
+
+    async setAttributeDefault(
+        categoryId: string,
+        attrId: string,
+        dto: SetAttributeDefaultDto,
+    ): Promise<PublicCategoryDto> {
+        const cat = await this.loadCategoryForWrite(categoryId);
+        const a = cat.attributes.find((x: any) => x.id === attrId && x.isDeleted !== true) as
+            | AttributeDefinition
+            | undefined;
+        if (!a) throw new AttributeNotFoundError(attrId);
+
+        if (a.kind === "checkbox") {
+            throw new InvalidOperationError("Checkbox does not support default option");
+        }
+
+        if (a.kind === "radio") {
+            // allow null to clear
+            if (dto.optionId === null) {
+                (a as any).defaultOptionId = undefined;
+            } else {
+                const exists = (a as any).options.find((o: any) => o.id === dto.optionId && !o.isDeleted);
+                if (!exists) throw new OptionNotFoundError(dto.optionId);
+                (a as any).defaultOptionId = dto.optionId;
+            }
+        } else {
+            // switch: optionId must be non-null & one of the two active options
+            if (!dto.optionId) throw new InvalidOperationError("Switch default requires a valid optionId");
+            const exists = (a as any).options.find((o: any) => o.id === dto.optionId && !o.isDeleted);
+            if (!exists) throw new OptionNotFoundError(dto.optionId);
+            (a as any).defaultOptionId = dto.optionId;
+        }
+
+        await (cat as any).save();
+        return toPublicCategoryDto(cat);
     }
 
     private async loadCategoryForWrite(id: string) {

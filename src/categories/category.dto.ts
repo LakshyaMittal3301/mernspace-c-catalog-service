@@ -35,6 +35,18 @@ export type UpdateAttributeDto = {
     maxSelected?: number;
 };
 
+export type AddAttributeOptionsDto = {
+    options: Array<{ label: string }>;
+};
+
+export type UpdateAttributeOptionDto = {
+    label: string;
+};
+
+export type SetAttributeDefaultDto = {
+    optionId: string | null; // service enforces per-kind rules (radio: string|null, switch: string only)
+};
+
 /** Presets: radio can have defaultOptionIndex too */
 type CreateBasePreset = {
     name: string;
