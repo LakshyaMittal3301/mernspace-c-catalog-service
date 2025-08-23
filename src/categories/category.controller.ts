@@ -2,15 +2,10 @@ import { Request, Response } from "express";
 import { ICategoryService } from "./category.service";
 import { Logger } from "winston";
 import {
-    AddAttributeOptionsDto,
-    CreateAttributeInput,
     CreateCategoryDto,
     GetCategoryDto,
     ListCategoryDto,
     PublicCategoryDto,
-    SetAttributeDefaultDto,
-    UpdateAttributeDto,
-    UpdateAttributeOptionDto,
     UpdateCategoryDto,
 } from "./category.dto";
 import {
@@ -24,6 +19,12 @@ import {
 import createHttpError from "http-errors";
 import { isAdmin } from "../common/utils";
 import { matchedData } from "express-validator";
+import {
+    AddAttributeOptionsDto,
+    CreateAttributeDto,
+    SetAttributeDefaultDto,
+    UpdateAttributeOptionDto,
+} from "./attribute.dto";
 
 export default class CategoryController {
     constructor(
@@ -136,7 +137,7 @@ export default class CategoryController {
                 locations: ["body"],
                 onlyValidData: true,
                 includeOptionals: true,
-            }) as CreateAttributeInput;
+            }) as CreateAttributeDto;
 
             const category = await this.categoryService.addAttribute(id, body);
             res.status(201).json({ category });

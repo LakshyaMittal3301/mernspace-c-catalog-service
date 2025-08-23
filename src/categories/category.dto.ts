@@ -1,77 +1,13 @@
 // src/categories/category.dto.ts
 import { AttributeDefinition } from "../core/types/attributes";
 import { ModificationPreset } from "../core/types/modifications";
-
-/** Create payload uses indexes instead of ids for defaults */
-type CreateBaseAttribute = {
-    name: string;
-    kind: "radio" | "checkbox" | "switch";
-    options: { label: string; isDeleted?: boolean; deletedAt?: Date }[];
-};
-
-type CreateSwitchAttribute = CreateBaseAttribute & {
-    kind: "switch";
-    defaultOptionIndex: number; // required for switch
-};
-
-type CreateRadioAttribute = CreateBaseAttribute & {
-    kind: "radio";
-    defaultOptionIndex?: number; // optional for radio
-    isRequired?: boolean;
-};
-
-type CreateCheckboxAttribute = CreateBaseAttribute & {
-    kind: "checkbox";
-    minSelected?: number;
-    maxSelected?: number;
-};
-
-export type CreateAttributeInput = CreateSwitchAttribute | CreateRadioAttribute | CreateCheckboxAttribute;
-
-export type UpdateAttributeDto = {
-    name?: string;
-    isRequired?: boolean;
-    minSelected?: number;
-    maxSelected?: number;
-};
-
-export type AddAttributeOptionsDto = {
-    options: Array<{ label: string }>;
-};
-
-export type UpdateAttributeOptionDto = {
-    label: string;
-};
-
-export type SetAttributeDefaultDto = {
-    optionId: string | null; // service enforces per-kind rules (radio: string|null, switch: string only)
-};
-
-/** Presets: radio can have defaultOptionIndex too */
-type CreateBasePreset = {
-    name: string;
-    kind: "radio" | "checkbox";
-    options: { label: string; isDeleted?: boolean; deletedAt?: Date }[];
-};
-
-type CreateRadioPreset = CreateBasePreset & {
-    kind: "radio";
-    defaultOptionIndex?: number;
-    isRequired?: boolean;
-};
-
-type CreateCheckboxPreset = CreateBasePreset & {
-    kind: "checkbox";
-    minSelected?: number;
-    maxSelected?: number;
-};
-
-export type CreateModificationPresetInput = CreateRadioPreset | CreateCheckboxPreset;
+import { CreateAttributeDto } from "./attribute.dto";
+import { CreatePresetDto } from "./preset.dto";
 
 export type CreateCategoryDto = {
     name: string;
-    attributes?: CreateAttributeInput[];
-    modificationPresets?: CreateModificationPresetInput[];
+    attributes?: CreateAttributeDto[];
+    modificationPresets?: CreatePresetDto[];
 };
 
 export type UpdateCategoryDto = {

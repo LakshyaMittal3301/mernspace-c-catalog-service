@@ -1,14 +1,9 @@
 import { Model } from "mongoose";
 import {
-    AddAttributeOptionsDto,
-    CreateAttributeInput,
     CreateCategoryDto,
     GetCategoryDto,
     ListCategoryDto,
     PublicCategoryDto,
-    SetAttributeDefaultDto,
-    UpdateAttributeDto,
-    UpdateAttributeOptionDto,
     UpdateCategoryDto,
 } from "./category.dto";
 import { toPublicCategoryDto } from "./category.mapper";
@@ -22,6 +17,13 @@ import {
     OptionNotFoundError,
 } from "./category.errors";
 import { AttributeDefinition } from "../core/types/attributes";
+import {
+    CreateAttributeDto,
+    UpdateAttributeDto,
+    AddAttributeOptionsDto,
+    UpdateAttributeOptionDto,
+    SetAttributeDefaultDto,
+} from "./attribute.dto";
 
 export interface ICategoryService {
     create(dto: CreateCategoryDto): Promise<PublicCategoryDto>;
@@ -29,7 +31,7 @@ export interface ICategoryService {
     softDelete(id: string): Promise<void>;
     list(dto: ListCategoryDto): Promise<PublicCategoryDto[]>;
     get(id: string, dto: GetCategoryDto): Promise<PublicCategoryDto>;
-    addAttribute(id: string, dto: CreateAttributeInput): Promise<PublicCategoryDto>;
+    addAttribute(id: string, dto: CreateAttributeDto): Promise<PublicCategoryDto>;
     updateAttribute(categoryId: string, attrId: string, dto: UpdateAttributeDto): Promise<PublicCategoryDto>;
     deleteAttribute(id: string, attrId: string): Promise<void>;
     addAttributeOptions(id: string, attrId: string, dto: AddAttributeOptionsDto): Promise<PublicCategoryDto>;
@@ -115,7 +117,7 @@ export class CategoryService implements ICategoryService {
         return toPublicCategoryDto(doc);
     }
 
-    async addAttribute(id: string, dto: CreateAttributeInput): Promise<PublicCategoryDto> {
+    async addAttribute(id: string, dto: CreateAttributeDto): Promise<PublicCategoryDto> {
         const cat = await this.categoryModel.findById(id);
         if (!cat) throw new CategoryNotFoundError(id);
         if (cat.isDeleted) throw new CategoryArchivedError(id);

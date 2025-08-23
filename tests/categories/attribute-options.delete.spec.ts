@@ -72,7 +72,7 @@ describe("DELETE /categories/:id/attributes/:attrId/options/:optId (soft delete 
         });
 
         it("204 again if already deleted (idempotent)", async () => {
-            const t = manager();
+            const t = admin();
             const cat = await seedRadio();
             const attr = (cat as any).attributes[0];
             const opt = attr.options[0];

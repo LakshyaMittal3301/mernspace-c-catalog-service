@@ -94,7 +94,7 @@ describe("POST /categories/:id/attributes/:attrId/options (add options)", () => 
         });
 
         it("200 → adds options to checkbox and preserves min/max invariants", async () => {
-            const t = manager();
+            const t = admin();
             const cat = await seedCheckbox();
             const attr = (cat as any).attributes[0];
 
