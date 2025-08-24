@@ -4,6 +4,7 @@ import { Request } from "express-jwt";
 import { Response } from "express";
 import createHttpError from "http-errors";
 import { isAdmin, isManager } from "../common/utils";
+import { MediaPolicyError, UnsupportedContentTypeError } from "./media.errors";
 
 export default class MediaController {
     constructor(private media: MediaService) {}
@@ -35,11 +36,24 @@ export default class MediaController {
             });
             res.status(200).json(resp);
         } catch (err: any) {
-            const msg = String(err?.message ?? "");
-            if (/unsupported contentType|policy|signature/i.test(msg)) {
-                throw createHttpError(400, msg);
+            try {
+                const resp = await this.media.presignUpload({
+                    purpose,
+                    filename,
+                    contentType,
+                    tenantId: tId!,
+                    productId,
+                });
+                res.status(200).json(resp);
+            } catch (err: any) {
+                if (err instanceof UnsupportedContentTypeError) {
+                    throw createHttpError(400, err.message);
+                }
+                if (err instanceof MediaPolicyError) {
+                    throw createHttpError(400, err.message);
+                }
+                throw err;
             }
-            throw err;
         }
     };
 }

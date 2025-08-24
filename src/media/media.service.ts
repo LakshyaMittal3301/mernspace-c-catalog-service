@@ -1,23 +1,27 @@
 import { randomBytes } from "crypto";
-import { publicUrlForKey, StorageConfig } from "../config/storage";
+import { StorageConfig } from "../config/storage";
 import { PresignRequest, PresignResponse } from "./media.dto";
-import { createPresignedPost } from "@aws-sdk/s3-presigned-post";
-import { s3 } from "./s3.client";
+import { UnsupportedContentTypeError } from "./media.errors";
+import { safeName } from "../common/utils";
+import { StorageProvider } from "./ports/storage.provider";
 
-const safeName = (name: string) =>
-    name
-        .toLowerCase()
-        .replace(/[^a-z0-9.\-_]+/g, "-")
-        .replace(/-+/g, "-")
-        .replace(/^-|-$|^\.+/g, "");
+const PurposeLimits: Record<string, { allowedContentTypes: string[]; maxSizeMB: number }> = {
+    productImage: {
+        allowedContentTypes: StorageConfig.allowedContentTypes,
+        maxSizeMB: StorageConfig.maxSizeMB,
+    },
+};
 
 export class MediaService {
+    constructor(private storage: StorageProvider) {}
+
     async presignUpload(req: PresignRequest): Promise<PresignResponse> {
-        if (!StorageConfig.allowedContentTypes.includes(req.contentType)) {
-            throw new Error("unsupported contentType");
+        const limits = PurposeLimits[req.purpose] ?? PurposeLimits.productImage;
+        if (!limits.allowedContentTypes.includes(req.contentType)) {
+            throw new UnsupportedContentTypeError(req.contentType);
         }
 
-        const maxBytes = StorageConfig.maxSizeMB * 1024 * 1024;
+        const maxBytes = limits.maxSizeMB * 1024 * 1024;
         const uid = randomBytes(8).toString("base64url");
 
         const keyPrefix =
@@ -27,21 +31,16 @@ export class MediaService {
 
         const key = `${keyPrefix}/${safeName(req.filename)}`;
 
-        const { url, fields } = await createPresignedPost(s3, {
-            Bucket: StorageConfig.bucket,
-            Key: key,
-            Conditions: [
-                ["content-length-range", 0, maxBytes],
-                ["eq", "$Content-Type", req.contentType],
-                ["eq", "$key", key],
-            ],
-            Fields: { "Content-Type": req.contentType },
-            Expires: StorageConfig.presignExpiresSec,
+        const { url, fields } = await this.storage.presignPost({
+            key,
+            contentType: req.contentType,
+            maxBytes,
+            expiresSec: StorageConfig.presignExpiresSec,
         });
 
         return {
             upload: { url, fields, maxBytes },
-            asset: { key, url: publicUrlForKey(key) },
+            asset: { key, url: this.storage.publicUrlForKey(key) },
         };
     }
 }
