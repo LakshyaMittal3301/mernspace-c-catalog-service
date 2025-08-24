@@ -93,4 +93,20 @@ export default class ProductController {
             throw err;
         }
     };
+
+    delete = async (req: Request, res: Response) => {
+        try {
+            const { id } = matchedData(req, { locations: ["params"], onlyValidData: true }) as { id: string };
+            const auth = { role: req.auth?.role ?? "", tenantId: req.auth?.tenantId };
+
+            await this.productService.softDelete(id, auth);
+            res.sendStatus(204);
+        } catch (err: any) {
+            if (err instanceof ProductNotFoundError) throw createHttpError(404, "Product not found");
+            if (err instanceof ForbiddenTenantUpdateError) throw createHttpError(403, "Not enough permissions");
+
+            this.logger?.error?.("Error deleting product", { err });
+            throw err;
+        }
+    };
 }

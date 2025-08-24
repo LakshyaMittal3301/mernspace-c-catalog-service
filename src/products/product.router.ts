@@ -9,6 +9,7 @@ import logger from "../config/logger";
 import { ProductModel } from "./product.model";
 import { createProductValidator } from "./validators/create-product.validator";
 import { updateProductValidator } from "./validators/update-product.validator";
+import { deleteProductValidator } from "./validators/delete-product.validator";
 
 // Service
 const productService = new ProductService(ProductModel);
@@ -37,4 +38,12 @@ router.patch(
     controller.update,
 );
 
+router.delete(
+    "/:id",
+    authenticate,
+    canAccess([Roles.ADMIN, Roles.MANAGER]),
+    deleteProductValidator,
+    handleValidation,
+    controller.delete,
+);
 export default router;

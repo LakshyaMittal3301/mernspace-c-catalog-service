@@ -18,6 +18,7 @@ type AuthCtx = { role: string; tenantId?: string };
 export interface IProductService {
     create(dto: CreateProductDto): Promise<PublicProductDto>;
     update(id: string, dto: UpdateProductDto, auth: AuthCtx): Promise<UpdateProductDto>;
+    softDelete(id: string, auth: AuthCtx): Promise<void>;
 }
 
 export class ProductService implements IProductService {
@@ -98,6 +99,23 @@ export class ProductService implements IProductService {
             }
             throw err;
         }
+    }
+
+    async softDelete(id: string, auth: AuthCtx): Promise<void> {
+        const doc = await this.productModel.findById(id);
+        if (!doc) throw new ProductNotFoundError(id);
+
+        if (auth.role === Roles.MANAGER) {
+            if (!auth.tenantId || auth.tenantId !== doc.tenantId) {
+                throw new ForbiddenTenantUpdateError();
+            }
+        }
+
+        if (doc.isDeleted) return;
+
+        doc.isDeleted = true;
+        doc.deletedAt = new Date();
+        await doc.save();
     }
 
     private async loadForWrite(id: string, auth: AuthCtx) {
