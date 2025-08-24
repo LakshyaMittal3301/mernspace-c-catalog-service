@@ -2,11 +2,8 @@ import { matchedData } from "express-validator";
 import { MediaService } from "./media.service";
 import { Request } from "express-jwt";
 import { Response } from "express";
-import { Roles } from "../common/constants";
 import createHttpError from "http-errors";
-
-const isAdmin = (req: Request) => req.auth?.role === Roles.ADMIN;
-const isManager = (req: Request) => req.auth?.role === Roles.MANAGER;
+import { isAdmin, isManager } from "../common/utils";
 
 export default class MediaController {
     constructor(private media: MediaService) {}

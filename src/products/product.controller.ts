@@ -1,15 +1,13 @@
-import { Request, Response } from "express";
+import { Response } from "express";
+import { Request } from "express-jwt";
 import { matchedData } from "express-validator";
 import createHttpError from "http-errors";
 import { Logger } from "winston";
 import { IProductService } from "./product.service";
-import { CreateProductDto, PublicProductDto } from "./product.dto";
-import { AuthenticatedRequest } from "../common/types";
-import { Roles } from "../common/constants";
+import { CreateProductDto } from "./product.dto";
 import { DuplicateProductNameError } from "./product.errors";
+import { isAdmin, isManager } from "../common/utils";
 
-const isAdmin = (req: AuthenticatedRequest) => req.auth?.role === Roles.ADMIN;
-const isManager = (req: AuthenticatedRequest) => req.auth?.role === Roles.MANAGER;
 const isDomainValidationMessage = (msg: string) => {
     return (
         /Exactly one base radio/i.test(msg) ||
@@ -34,7 +32,7 @@ export default class ProductController {
         private productService: IProductService,
     ) {}
 
-    create = async (req: AuthenticatedRequest, res: Response) => {
+    create = async (req: Request, res: Response) => {
         try {
             const body = matchedData(req, {
                 locations: ["body"],
