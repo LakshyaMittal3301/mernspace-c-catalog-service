@@ -25,11 +25,20 @@ export class ProductService implements IProductService {
 
     async create(dto: CreateProductDto): Promise<PublicProductDto> {
         try {
+            let image = dto.image;
+            if (dto.image?.key) {
+                const expectedPrefix = `products/${dto.tenantId}/`;
+                if (!dto.image.key.startsWith(expectedPrefix)) {
+                    throw new InvalidImageKeyError();
+                }
+                image = { key: dto.image.key, url: publicUrlForKey(dto.image.key) };
+            }
+
             const data = {
                 tenantId: dto.tenantId!,
                 name: dto.name,
                 description: dto.description,
-                image: dto.image,
+                image,
                 categoryId: dto.categoryId,
                 attributeValues: dto.attributeValues ?? [],
                 modifications: dto.modifications ?? [],
@@ -42,6 +51,9 @@ export class ProductService implements IProductService {
         } catch (err: any) {
             if (err?.code === 11000 && (err?.keyPattern?.name || err?.keyValue?.name)) {
                 throw new DuplicateProductNameError(dto.name);
+            }
+            if (err?.name === "ValidationError" || typeof err?.message === "string") {
+                throw new DomainValidationError(err.message);
             }
             throw err;
         }

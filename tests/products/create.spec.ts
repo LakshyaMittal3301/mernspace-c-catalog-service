@@ -72,40 +72,50 @@ describe("POST /products", () => {
         await stopTestMongo();
     });
 
-    const validBody = (overrides: Partial<any> = {}, tenantIdForAdmin?: string) => ({
-        ...(tenantIdForAdmin ? { tenantId: tenantIdForAdmin } : {}),
-        name: "Margherita",
-        description: "Classic cheese pizza",
-        image: { key: "img/key", url: "https://cdn.example.com/img.jpg" },
-        categoryId: String(category._id),
-        attributeValues: [
-            // radio required -> must include a selection
-            { defId: sizeAttr.id, kind: "radio", selectedOptionId: sizeAttr.defaultOptionId },
-            { defId: switchAttr.id, kind: "switch", selectedOptionId: switchAttr.options[1].id },
-            { defId: checkboxAttr.id, kind: "checkbox", selectedOptionIds: [checkboxAttr.options[0].id] },
-        ],
-        modifications: [
-            {
-                name: "Base",
-                kind: "radio",
-                isBase: true,
-                options: [{ label: "Standard", price: 29900 }],
-                defaultOptionIndex: 0,
-            },
-            {
-                name: "Cheese",
-                kind: "checkbox",
-                options: [
-                    { label: "Extra Cheese", price: 3000 },
-                    { label: "Double Cheese", price: 5000 },
-                ],
-                minSelected: 0,
-                maxSelected: 1,
-            },
-        ],
-        status: "active",
-        ...overrides,
-    });
+    /**
+     * Build a valid request body.
+     * - tenantIdForAdmin: included in body when Admin is calling (required by controller)
+     * - imageTenantId: used to construct image.key as "products/<imageTenantId>/...".
+     *                  For Admin tests, pass the same as tenantIdForAdmin.
+     *                  For Manager tests, pass the manager's token tenantId.
+     */
+    const validBody = (overrides: Partial<any> = {}, tenantIdForAdmin?: string, imageTenantId?: string) => {
+        const imgTenant = imageTenantId ?? tenantIdForAdmin ?? "t-001";
+        return {
+            ...(tenantIdForAdmin ? { tenantId: tenantIdForAdmin } : {}),
+            name: "Margherita",
+            description: "Classic cheese pizza",
+            image: { key: `products/${imgTenant}/u1/margherita.jpg`, url: "https://ignored.by.server" },
+            categoryId: String(category._id),
+            attributeValues: [
+                // radio required -> must include a selection
+                { defId: sizeAttr.id, kind: "radio", selectedOptionId: sizeAttr.defaultOptionId },
+                { defId: switchAttr.id, kind: "switch", selectedOptionId: switchAttr.options[1].id },
+                { defId: checkboxAttr.id, kind: "checkbox", selectedOptionIds: [checkboxAttr.options[0].id] },
+            ],
+            modifications: [
+                {
+                    name: "Base",
+                    kind: "radio",
+                    isBase: true,
+                    options: [{ label: "Standard", price: 29900 }],
+                    defaultOptionIndex: 0,
+                },
+                {
+                    name: "Cheese",
+                    kind: "checkbox",
+                    options: [
+                        { label: "Extra Cheese", price: 3000 },
+                        { label: "Double Cheese", price: 5000 },
+                    ],
+                    minSelected: 0,
+                    maxSelected: 1,
+                },
+            ],
+            status: "active",
+            ...overrides,
+        };
+    };
 
     describe("Happy path", () => {
         it("201 (ADMIN) creates product when tenantId provided; maps defaultOptionIndex → defaultOptionId", async () => {
@@ -114,7 +124,7 @@ describe("POST /products", () => {
             const res = await request(app)
                 .post(route)
                 .set("Cookie", [`accessToken=${t}`])
-                .send(validBody({}, "tenant-1"))
+                .send(validBody({}, "tenant-1", "tenant-1"))
                 .expect(201);
 
             expect(res.headers["content-type"]).toContain("json");
@@ -131,7 +141,7 @@ describe("POST /products", () => {
             expect(base.defaultOptionId).toBeTruthy();
             expect(base.options.some((o: any) => o.id === base.defaultOptionId)).toBe(true);
 
-            // ensure it's persisted with defaultOptionId (and index not persisted)
+            // ensure persisted with defaultOptionId (and index not persisted)
             const persisted = await ProductModel.findById(product.id).lean();
             expect(persisted).toBeTruthy();
             if (!persisted) throw new Error("Persisted product not found");
@@ -142,6 +152,11 @@ describe("POST /products", () => {
 
             expect(persistedBase.defaultOptionId).toBeTruthy();
             expect("defaultOptionIndex" in persistedBase).toBe(false);
+
+            // image url recomputed server-side
+            expect(product.image.key).toBe(`products/tenant-1/u1/margherita.jpg`);
+            expect(typeof product.image.url).toBe("string");
+            expect(product.image.url).toContain(product.image.key);
         });
 
         it("201 (MANAGER) ignores body.tenantId and uses tenantId from JWT", async () => {
@@ -149,11 +164,13 @@ describe("POST /products", () => {
             const res = await request(app)
                 .post(route)
                 .set("Cookie", [`accessToken=${t}`])
-                .send(validBody({ tenantId: "wrong-tenant" })) // should be ignored
+                // Build image key with manager's tenant
+                .send(validBody({ tenantId: "wrong-tenant" }, undefined, "tenant-XYZ"))
                 .expect(201);
 
             const product = res.body.product ?? res.body;
             expect(product.tenantId).toBe("tenant-XYZ");
+            expect(product.image.key).toBe(`products/tenant-XYZ/u1/margherita.jpg`);
         });
 
         it("persists and can be queried back from DB", async () => {
@@ -161,7 +178,7 @@ describe("POST /products", () => {
             await request(app)
                 .post(route)
                 .set("Cookie", [`accessToken=${t}`])
-                .send(validBody({}, "tenant-2"))
+                .send(validBody({}, "tenant-2", "tenant-2"))
                 .expect(201);
 
             const docs = await ProductModel.find({ tenantId: "tenant-2" });
@@ -173,7 +190,7 @@ describe("POST /products", () => {
     describe("Validation / invariants", () => {
         it("400 when name missing", async () => {
             const t = adminToken();
-            const body = validBody({ name: "" }, "tenant-1");
+            const body = validBody({ name: "" }, "tenant-1", "tenant-1");
             await request(app)
                 .post(route)
                 .set("Cookie", [`accessToken=${t}`])
@@ -183,7 +200,7 @@ describe("POST /products", () => {
 
         it("400 when description missing", async () => {
             const t = adminToken();
-            const { description, ...rest } = validBody({}, "tenant-1");
+            const { description, ...rest } = validBody({}, "tenant-1", "tenant-1");
             await request(app)
                 .post(route)
                 .set("Cookie", [`accessToken=${t}`])
@@ -193,7 +210,7 @@ describe("POST /products", () => {
 
         it("400 when categoryId missing", async () => {
             const t = adminToken();
-            const { categoryId, ...rest } = validBody({}, "tenant-1");
+            const { categoryId, ...rest } = validBody({}, "tenant-1", "tenant-1");
             await request(app)
                 .post(route)
                 .set("Cookie", [`accessToken=${t}`])
@@ -203,7 +220,7 @@ describe("POST /products", () => {
 
         it("400 when modifications are missing or empty", async () => {
             const t = adminToken();
-            const body = { ...validBody({}, "tenant-1"), modifications: [] };
+            const body = { ...validBody({}, "tenant-1", "tenant-1"), modifications: [] };
             await request(app)
                 .post(route)
                 .set("Cookie", [`accessToken=${t}`])
@@ -213,7 +230,7 @@ describe("POST /products", () => {
 
         it("400 when there is no base radio (isBase=true)", async () => {
             const t = adminToken();
-            const body = validBody({}, "tenant-1");
+            const body = validBody({}, "tenant-1", "tenant-1");
             // flip isBase off
             body.modifications[0].isBase = false;
             await request(app)
@@ -225,7 +242,7 @@ describe("POST /products", () => {
 
         it("400 when more than one base radio is present", async () => {
             const t = adminToken();
-            const body = validBody({}, "tenant-1");
+            const body = validBody({}, "tenant-1", "tenant-1");
             body.modifications.unshift({
                 name: "Alt Base",
                 kind: "radio",
@@ -242,7 +259,7 @@ describe("POST /products", () => {
 
         it("400 when base radio has defaultOptionIndex out of range", async () => {
             const t = adminToken();
-            const body = validBody({}, "tenant-1");
+            const body = validBody({}, "tenant-1", "tenant-1");
             body.modifications[0].defaultOptionIndex = 9; // out of range
             await request(app)
                 .post(route)
@@ -253,7 +270,7 @@ describe("POST /products", () => {
 
         it("400 when checkbox is marked as isBase", async () => {
             const t = adminToken();
-            const body = validBody({}, "tenant-1");
+            const body = validBody({}, "tenant-1", "tenant-1");
             (body.modifications[1] as any).isBase = true;
             await request(app)
                 .post(route)
@@ -264,7 +281,7 @@ describe("POST /products", () => {
 
         it("400 when option price is negative", async () => {
             const t = adminToken();
-            const body = validBody({}, "tenant-1");
+            const body = validBody({}, "tenant-1", "tenant-1");
             body.modifications[1].options[0].price = -1; // invalid
             await request(app)
                 .post(route)
@@ -275,7 +292,7 @@ describe("POST /products", () => {
 
         it("400 when attributeValues refer to wrong defId", async () => {
             const t = adminToken();
-            const body = validBody({}, "tenant-1");
+            const body = validBody({}, "tenant-1", "tenant-1");
             body.attributeValues[0].defId = "non-existent";
             await request(app)
                 .post(route)
@@ -286,7 +303,7 @@ describe("POST /products", () => {
 
         it("400 when radio attribute is required but no selection provided", async () => {
             const t = adminToken();
-            const body = validBody({}, "tenant-1");
+            const body = validBody({}, "tenant-1", "tenant-1");
             // remove selection for required radio Size
             (body.attributeValues[0] as any).selectedOptionId = undefined;
             await request(app)
@@ -298,7 +315,7 @@ describe("POST /products", () => {
 
         it("400 when checkbox selections exceed maxSelected per category def", async () => {
             const t = adminToken();
-            const body = validBody({}, "tenant-1");
+            const body = validBody({}, "tenant-1", "tenant-1");
             // category checkbox maxSelected = 2, push 3 options to violate
             (body.attributeValues[2] as any).selectedOptionIds = checkboxAttr.options.map((o: any) => o.id); // 3
             await request(app)
@@ -308,9 +325,19 @@ describe("POST /products", () => {
                 .expect(400);
         });
 
+        it("400 when image key prefix does not match tenant", async () => {
+            const t = adminToken();
+            const body = validBody({}, "tenant-1", "WRONG-TENANT");
+            await request(app)
+                .post(route)
+                .set("Cookie", [`accessToken=${t}`])
+                .send(body)
+                .expect(400);
+        });
+
         it("does not create product on validation error", async () => {
             const t = adminToken();
-            const { name, ...bad } = validBody({}, "tenant-1"); // missing name
+            const { name, ...bad } = validBody({}, "tenant-1", "tenant-1"); // missing name
             await request(app)
                 .post(route)
                 .set("Cookie", [`accessToken=${t}`])
@@ -323,14 +350,17 @@ describe("POST /products", () => {
 
     describe("Auth / RBAC", () => {
         it("401 when unauthenticated", async () => {
-            await request(app).post(route).send(validBody({}, "tenant-1")).expect(401);
+            await request(app)
+                .post(route)
+                .send(validBody({}, "tenant-1", "tenant-1"))
+                .expect(401);
         });
 
         it("401 when token invalid", async () => {
             await request(app)
                 .post(route)
                 .set("Cookie", ["accessToken=not-a-jwt"])
-                .send(validBody({}, "tenant-1"))
+                .send(validBody({}, "tenant-1", "tenant-1"))
                 .expect(401);
         });
 
@@ -343,7 +373,7 @@ describe("POST /products", () => {
             await request(app)
                 .post(route)
                 .set("Cookie", [`accessToken=${expired}`])
-                .send(validBody({}, "tenant-1"))
+                .send(validBody({}, "tenant-1", "tenant-1"))
                 .expect(401);
         });
 
@@ -352,13 +382,13 @@ describe("POST /products", () => {
             await request(app)
                 .post(route)
                 .set("Cookie", [`accessToken=${t}`])
-                .send(validBody({}, "tenant-1"))
+                .send(validBody({}, "tenant-1", "tenant-1"))
                 .expect(403);
         });
 
         it("400 (ADMIN) when tenantId missing in body", async () => {
             const t = adminToken();
-            const { tenantId, ...body } = validBody({}, "tenant-1");
+            const { tenantId, ...body } = validBody({}, "tenant-1", "tenant-1");
             // send without tenantId
             await request(app)
                 .post(route)
@@ -372,7 +402,7 @@ describe("POST /products", () => {
             await request(app)
                 .post(route)
                 .set("Cookie", [`accessToken=${t}`])
-                .send(validBody({ tenantId: "tenant-ignored" }))
+                .send(validBody({ tenantId: "tenant-ignored" }, undefined, "t-001"))
                 .expect(403);
         });
     });
@@ -380,7 +410,7 @@ describe("POST /products", () => {
     describe("Duplicate name per tenant", () => {
         it("409 when same tenant & same name (active)", async () => {
             const t = adminToken();
-            const body = validBody({}, "tenant-dup");
+            const body = validBody({}, "tenant-dup", "tenant-dup");
             await request(app)
                 .post(route)
                 .set("Cookie", [`accessToken=${t}`])
@@ -398,12 +428,12 @@ describe("POST /products", () => {
             await request(app)
                 .post(route)
                 .set("Cookie", [`accessToken=${t}`])
-                .send(validBody({}, "tenant-A"))
+                .send(validBody({}, "tenant-A", "tenant-A"))
                 .expect(201);
             await request(app)
                 .post(route)
                 .set("Cookie", [`accessToken=${t}`])
-                .send(validBody({}, "tenant-B"))
+                .send(validBody({}, "tenant-B", "tenant-B"))
                 .expect(201);
         });
     });
