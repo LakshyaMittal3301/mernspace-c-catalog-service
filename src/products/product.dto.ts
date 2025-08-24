@@ -65,6 +65,15 @@ export type CreateProductDto = {
     status?: ProductStatus;
 };
 
+export type UpdateProductDto = {
+    name?: string;
+    description?: string;
+    status?: ProductStatus; // "draft" | "active" | "archived"
+    image?: { key: string; url?: string }; // url is ignored; server recomputes
+    categoryId?: string; // if provided & different → clear attributeValues
+    attributeValues?: CreateAttributeValueDto[]; // replaces full set (if provided)
+};
+
 export type PublicProductDto = {
     id: string;
     tenantId: string;

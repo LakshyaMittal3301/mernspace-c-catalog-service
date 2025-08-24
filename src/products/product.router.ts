@@ -1,4 +1,4 @@
-import express, { Request, Response } from "express";
+import express from "express";
 import authenticate from "../common/middlewares/authenticate";
 import { canAccess } from "../common/middlewares/canAccess";
 import { Roles } from "../common/constants";
@@ -8,6 +8,7 @@ import { ProductService } from "./product.service";
 import logger from "../config/logger";
 import { ProductModel } from "./product.model";
 import { createProductValidator } from "./validators/create-product.validator";
+import { updateProductValidator } from "./validators/update-product.validator";
 
 // Service
 const productService = new ProductService(ProductModel);
@@ -26,4 +27,14 @@ router.post(
     handleValidation,
     controller.create,
 );
+
+router.patch(
+    "/:id",
+    authenticate,
+    canAccess([Roles.ADMIN, Roles.MANAGER]),
+    updateProductValidator,
+    handleValidation,
+    controller.update,
+);
+
 export default router;
