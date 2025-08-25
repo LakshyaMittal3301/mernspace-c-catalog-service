@@ -29,4 +29,5 @@ export type PublicCategoryDto = {
     modificationPresets: ModificationPreset[];
     isDeleted: boolean;
     deletedAt?: string;
+    // To-do: Add createdAt and updatedAt
 };

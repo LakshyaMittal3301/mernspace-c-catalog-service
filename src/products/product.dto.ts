@@ -87,3 +87,35 @@ export type PublicProductDto = {
     isDeleted: boolean;
     deletedAt?: string;
 };
+
+export type ListProductsQueryDto = {
+    tenantId?: string;
+    categoryId?: string;
+    q?: string;
+    includeDeleted: boolean;
+    status?: ProductStatus[];
+    page: number;
+    limit: number;
+    sortBy: "createdAt" | "updatedAt" | "name";
+    sortOrder: "asc" | "desc";
+};
+
+export type PublicProductListItemDto = {
+    id: string;
+    tenantId: string;
+    name: string;
+    description: string;
+    image?: { key: string; url: string };
+    categoryId: string;
+    status: ProductStatus;
+    isDeleted: boolean;
+    deletedAt?: string;
+    createdAt: string;
+    updatedAt: string;
+    basePrice: number;
+};
+
+export type ListProductsResponseDto = {
+    items: PublicProductListItemDto[];
+    pageInfo: { page: number; limit: number; total: number; hasNextPage: boolean };
+};

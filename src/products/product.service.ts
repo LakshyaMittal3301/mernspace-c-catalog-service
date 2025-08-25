@@ -1,7 +1,14 @@
 import { Model } from "mongoose";
 import { Product } from "./product.types";
-import { CreateProductDto, PublicProductDto, UpdateProductDto } from "./product.dto";
-import { toPublicProductDto } from "./product.mapper";
+import {
+    CreateProductDto,
+    ListProductsQueryDto,
+    ListProductsResponseDto,
+    PublicProductDto,
+    PublicProductListItemDto,
+    UpdateProductDto,
+} from "./product.dto";
+import { toProductListItemDto, toPublicProductDto } from "./product.mapper";
 import {
     DomainValidationError,
     DuplicateProductNameError,
@@ -19,6 +26,7 @@ export interface IProductService {
     create(dto: CreateProductDto): Promise<PublicProductDto>;
     update(id: string, dto: UpdateProductDto, auth: AuthCtx): Promise<UpdateProductDto>;
     softDelete(id: string, auth: AuthCtx): Promise<void>;
+    list(query: ListProductsQueryDto, auth: AuthCtx): Promise<ListProductsResponseDto>;
 }
 
 export class ProductService implements IProductService {
@@ -116,6 +124,78 @@ export class ProductService implements IProductService {
         doc.isDeleted = true;
         doc.deletedAt = new Date();
         await doc.save();
+    }
+
+    async list(query: ListProductsQueryDto, auth: AuthCtx): Promise<ListProductsResponseDto> {
+        const { tenantId, categoryId, includeDeleted, status, q, page, limit, sortBy, sortOrder } = query;
+
+        const filter: any = {};
+
+        // Tenant scoping
+        if (auth.role === Roles.MANAGER) {
+            if (auth.tenantId) filter.tenantId = auth.tenantId;
+        } else if (tenantId) {
+            filter.tenantId = tenantId;
+        }
+
+        if (!includeDeleted) filter.isDeleted = false;
+        if (categoryId) filter.categoryId = categoryId;
+        if (Array.isArray(status) && status.length > 0) filter.status = { $in: status };
+
+        // Search (regex for now; consider text index later)
+        if (q) {
+            const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+            filter.$or = [{ name: rx }, { description: rx }];
+        }
+
+        // Sorting
+        const sort: Record<string, 1 | -1> = {};
+        const dir: 1 | -1 = sortOrder === "asc" ? 1 : -1;
+        if (sortBy === "name") {
+            sort.name = dir;
+        } else if (sortBy === "updatedAt") {
+            sort.updatedAt = dir;
+        } else {
+            sort.createdAt = dir; // default
+        }
+
+        // Pagination
+        const skip = (page - 1) * limit;
+
+        // Projection: fetch only fields needed for list + base price computation
+        const proj = {
+            tenantId: 1,
+            name: 1,
+            description: 1,
+            image: 1,
+            categoryId: 1,
+            status: 1,
+            isDeleted: 1,
+            deletedAt: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            // minimal modifications shape to compute basePrice (not returned in output)
+            "modifications.kind": 1,
+            "modifications.isBase": 1,
+            "modifications.isDeleted": 1,
+            "modifications.defaultOptionId": 1,
+            "modifications.options.id": 1,
+            "modifications.options.price": 1,
+            "modifications.options.isDeleted": 1,
+        };
+
+        const [total, docs] = await Promise.all([
+            this.productModel.countDocuments(filter),
+            this.productModel.find(filter, proj).sort(sort).skip(skip).limit(limit).lean(),
+        ]);
+
+        const items: PublicProductListItemDto[] = docs.map(toProductListItemDto);
+        const hasNextPage = skip + items.length < total;
+
+        return {
+            items,
+            pageInfo: { page, limit, total, hasNextPage },
+        };
     }
 
     private async loadForWrite(id: string, auth: AuthCtx) {

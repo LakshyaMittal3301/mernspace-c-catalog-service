@@ -4,7 +4,7 @@ import { matchedData } from "express-validator";
 import createHttpError from "http-errors";
 import { Logger } from "winston";
 import { IProductService } from "./product.service";
-import { CreateProductDto, UpdateProductDto } from "./product.dto";
+import { CreateProductDto, ListProductsQueryDto, UpdateProductDto } from "./product.dto";
 import {
     DomainValidationError,
     DuplicateProductNameError,
@@ -14,6 +14,40 @@ import {
     ProductNotFoundError,
 } from "./product.errors";
 import { isAdmin, isManager } from "../common/utils";
+import { Roles } from "../common/constants";
+
+function normalizeListQuery(raw: any, role: string, authTenantId?: string): ListProductsQueryDto {
+    // defaults
+    const page = Number.isInteger(raw.page) ? raw.page : 1;
+    const limitRaw = Number.isInteger(raw.limit) ? raw.limit : 20;
+    const limit = Math.max(1, Math.min(100, limitRaw));
+    const sortBy = (raw.sortBy as any) ?? "createdAt";
+    const sortOrder = (raw.sortOrder as any) ?? "desc";
+
+    // includeDeleted default: false for everyone; manager cannot enable it
+    const includeDeleted = role === Roles.MANAGER ? false : !!raw.includeDeleted;
+
+    // status already sanitized to string[] by validator (or undefined)
+    const status = Array.isArray(raw.status) ? (raw.status as any[]) : undefined;
+
+    // Tenant scoping
+    let tenantId: string | undefined = undefined;
+    if (role === Roles.MANAGER) tenantId = authTenantId;
+    else if (typeof raw.tenantId === "string" && raw.tenantId.trim()) tenantId = raw.tenantId.trim();
+
+    const dto: ListProductsQueryDto = {
+        tenantId,
+        categoryId: raw.categoryId,
+        includeDeleted,
+        status: status as any,
+        q: raw.q,
+        page,
+        limit,
+        sortBy,
+        sortOrder,
+    };
+    return dto;
+}
 
 export default class ProductController {
     constructor(
@@ -106,6 +140,20 @@ export default class ProductController {
             if (err instanceof ForbiddenTenantUpdateError) throw createHttpError(403, "Not enough permissions");
 
             this.logger?.error?.("Error deleting product", { err });
+            throw err;
+        }
+    };
+
+    list = async (req: Request, res: Response) => {
+        const qdata = matchedData(req, { locations: ["query"], onlyValidData: true, includeOptionals: true });
+        const auth = { role: req.auth?.role ?? "", tenantId: req.auth?.tenantId };
+        const dto = normalizeListQuery(qdata, auth.role, auth.tenantId);
+
+        try {
+            const result = await this.productService.list(dto, auth);
+            res.status(200).json(result);
+        } catch (err: any) {
+            // Listing shouldn't raise domain errors; propagate unexpected
             throw err;
         }
     };

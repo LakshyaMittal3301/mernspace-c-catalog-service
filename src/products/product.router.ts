@@ -10,6 +10,7 @@ import { ProductModel } from "./product.model";
 import { createProductValidator } from "./validators/create-product.validator";
 import { updateProductValidator } from "./validators/update-product.validator";
 import { deleteProductValidator } from "./validators/delete-product.validator";
+import { listProductsValidator } from "./validators/list-products.validator";
 
 // Service
 const productService = new ProductService(ProductModel);
@@ -45,5 +46,14 @@ router.delete(
     deleteProductValidator,
     handleValidation,
     controller.delete,
+);
+
+router.get(
+    "/",
+    authenticate,
+    canAccess([Roles.ADMIN, Roles.MANAGER]),
+    listProductsValidator,
+    handleValidation,
+    controller.list,
 );
 export default router;
