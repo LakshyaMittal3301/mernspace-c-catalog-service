@@ -24,7 +24,7 @@ type AuthCtx = { role: string; tenantId?: string };
 
 export interface IProductService {
     create(dto: CreateProductDto): Promise<PublicProductDto>;
-    update(id: string, dto: UpdateProductDto, auth: AuthCtx): Promise<UpdateProductDto>;
+    update(id: string, dto: UpdateProductDto, auth: AuthCtx): Promise<PublicProductDto>;
     softDelete(id: string, auth: AuthCtx): Promise<void>;
     list(query: ListProductsQueryDto, auth: AuthCtx): Promise<ListProductsResponseDto>;
     get(id: string, includeDeleted: boolean, auth: AuthCtx): Promise<PublicProductDto>;
@@ -69,7 +69,7 @@ export class ProductService implements IProductService {
         }
     }
 
-    async update(id: string, dto: UpdateProductDto, auth: AuthCtx): Promise<UpdateProductDto> {
+    async update(id: string, dto: UpdateProductDto, auth: AuthCtx): Promise<PublicProductDto> {
         const doc = await this.loadForWrite(id, auth);
 
         // name / description / status
