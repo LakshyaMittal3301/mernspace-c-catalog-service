@@ -13,11 +13,14 @@ import { toProductListItemDto, toPublicProductDto } from "./product.mapper";
 import {
     BaseRadioConflictError,
     CannotDeleteBaseRadioError,
+    CannotDeleteDefaultOptionError,
+    CannotDeleteLastActiveOptionError,
     DomainValidationError,
     DuplicateProductNameError,
     ForbiddenTenantUpdateError,
     InvalidImageKeyError,
     ModificationNotFoundError,
+    OptionNotFoundError,
     ProductArchivedError,
     ProductNotFoundError,
 } from "./product.errors";
@@ -41,6 +44,21 @@ export interface IProductService {
     ): Promise<PublicProductDto>;
     deleteModification(productId: string, modId: string, auth: AuthCtx): Promise<void>;
     setBaseModification(productId: string, modId: string, auth: AuthCtx): Promise<PublicProductDto>;
+    addOptions(
+        productId: string,
+        modId: string,
+        options: { label: string; price: number }[],
+        auth: AuthCtx,
+    ): Promise<PublicProductDto>;
+    updateOption(
+        productId: string,
+        modId: string,
+        optId: string,
+        dto: { label?: string; price?: number },
+        auth: AuthCtx,
+    ): Promise<PublicProductDto>;
+    deleteOption(productId: string, modId: string, optId: string, auth: AuthCtx): Promise<void>;
+    setDefaultOption(productId: string, modId: string, optId: string, auth: AuthCtx): Promise<PublicProductDto>;
 }
 
 export class ProductService implements IProductService {
@@ -83,7 +101,7 @@ export class ProductService implements IProductService {
     }
 
     async update(id: string, dto: UpdateProductDto, auth: AuthCtx): Promise<PublicProductDto> {
-        const doc = await this.loadForWrite(id, auth);
+        const doc = await this.loadProductForWrite(id, auth);
 
         // name / description / status
         if (dto.name !== undefined) doc.name = dto.name;
@@ -250,7 +268,7 @@ export class ProductService implements IProductService {
         return toPublicProductDto(shaped);
     }
     async addModification(productId: string, dto: any, auth: AuthCtx): Promise<PublicProductDto> {
-        const doc = await this.loadForWrite(productId, auth);
+        const doc = await this.loadProductForWrite(productId, auth);
 
         // Guard: checkbox cannot be base
         if (dto.kind === "checkbox" && dto.isBase === true) {
@@ -302,7 +320,7 @@ export class ProductService implements IProductService {
         dto: UpdateProductModificationDto,
         auth: AuthCtx,
     ): Promise<PublicProductDto> {
-        const doc = await this.loadForWrite(productId, auth);
+        const doc = await this.loadProductForWrite(productId, auth);
         const mod = this.findActiveMod(doc, modId);
         if (!mod) throw new ModificationNotFoundError(modId);
 
@@ -334,7 +352,7 @@ export class ProductService implements IProductService {
     }
 
     async deleteModification(productId: string, modId: string, auth: AuthCtx): Promise<void> {
-        const doc = await this.loadForWrite(productId, auth);
+        const doc = await this.loadProductForWrite(productId, auth);
         const mod = (doc.modifications ?? []).find((m: any) => m.id === modId);
         if (!mod) throw new ModificationNotFoundError(modId);
 
@@ -358,7 +376,7 @@ export class ProductService implements IProductService {
     }
 
     async setBaseModification(productId: string, modId: string, auth: AuthCtx) {
-        const doc = await this.loadForWrite(productId, auth);
+        const doc = await this.loadProductForWrite(productId, auth);
 
         const target: any = (doc.modifications ?? []).find((m: any) => m.id === modId);
         if (!target) throw new ModificationNotFoundError(modId);
@@ -399,7 +417,115 @@ export class ProductService implements IProductService {
         }
     }
 
-    private async loadForWrite(id: string, auth: AuthCtx) {
+    async addOptions(
+        productId: string,
+        modId: string,
+        options: { label: string; price: number }[],
+        auth: AuthCtx,
+    ): Promise<PublicProductDto> {
+        const doc = await this.loadProductForWrite(productId, auth);
+        const mod = this.getWritableModification(doc, modId);
+
+        // push new options (ids will be generated in pre-validate)
+        for (const o of options) {
+            (mod.options ??= []).push({ label: o.label, price: o.price });
+        }
+
+        try {
+            await doc.save();
+            return toPublicProductDto(doc);
+        } catch (err: any) {
+            if (err?.name === "ValidationError" || typeof err?.message === "string") {
+                throw new DomainValidationError(err.message);
+            }
+            throw err;
+        }
+    }
+
+    async updateOption(
+        productId: string,
+        modId: string,
+        optId: string,
+        dto: { label?: string; price?: number },
+        auth: AuthCtx,
+    ): Promise<PublicProductDto> {
+        const doc = await this.loadProductForWrite(productId, auth);
+        const mod = this.getWritableModification(doc, modId);
+        const opt = this.getWritableOption(mod, optId);
+
+        if (dto.label !== undefined) opt.label = dto.label;
+        if (dto.price !== undefined) opt.price = dto.price;
+
+        try {
+            await doc.save();
+            return toPublicProductDto(doc);
+        } catch (err: any) {
+            if (err?.name === "ValidationError" || typeof err?.message === "string") {
+                throw new DomainValidationError(err.message);
+            }
+            throw err;
+        }
+    }
+
+    async deleteOption(productId: string, modId: string, optId: string, auth: AuthCtx): Promise<void> {
+        const doc = await this.loadProductForWrite(productId, auth);
+        const mod = this.getWritableModification(doc, modId);
+        const opt = (mod.options ?? []).find((o: any) => o.id === optId);
+        if (!opt) throw new OptionNotFoundError(optId);
+
+        // idempotent
+        if (opt.isDeleted) return;
+
+        // Conflict: deleting current default in radio
+        if (mod.kind === "radio" && mod.defaultOptionId === opt.id) {
+            throw new CannotDeleteDefaultOptionError(mod.name);
+        }
+
+        // Conflict: would become zero active options
+        const remainingActive = this.activeOptions(mod).filter((o: any) => o.id !== opt.id);
+        if (remainingActive.length === 0) {
+            throw new CannotDeleteLastActiveOptionError(mod.name);
+        }
+
+        // soft-delete
+        opt.isDeleted = true;
+        opt.deletedAt = new Date();
+
+        try {
+            await doc.save();
+        } catch (err: any) {
+            if (err?.name === "ValidationError" || typeof err?.message === "string") {
+                throw new DomainValidationError(err.message);
+            }
+            throw err;
+        }
+    }
+
+    async setDefaultOption(productId: string, modId: string, optId: string, auth: AuthCtx): Promise<PublicProductDto> {
+        const doc = await this.loadProductForWrite(productId, auth);
+        const mod = this.getWritableModification(doc, modId);
+
+        if (mod.kind !== "radio")
+            throw new DomainValidationError("Default option is only valid for radio modifications");
+
+        const opt = (mod.options ?? []).find((o: any) => o.id === optId);
+        if (!opt) throw new OptionNotFoundError(optId);
+        if (opt.isDeleted) throw new DomainValidationError("Cannot set default to a soft-deleted option");
+
+        mod.defaultOptionId = optId;
+
+        try {
+            await doc.save();
+            return toPublicProductDto(doc);
+        } catch (err: any) {
+            if (err?.name === "ValidationError" || typeof err?.message === "string") {
+                throw new DomainValidationError(err.message);
+            }
+            throw err;
+        }
+    }
+
+    private async loadProductForWrite(id: string, auth: AuthCtx) {
         const doc = await this.productModel.findById(id);
         if (!doc) throw new ProductNotFoundError(id);
         if (doc.isDeleted) throw new ProductArchivedError(id);
@@ -409,6 +535,19 @@ export class ProductService implements IProductService {
         return doc;
     }
 
+    private getWritableModification(doc: any, modId: string) {
+        const mod = (doc.modifications ?? []).find((m: any) => m.id === modId);
+        if (!mod) throw new ModificationNotFoundError(modId);
+        if (mod.isDeleted) throw new DomainValidationError("Modification is archived");
+        return mod;
+    }
+
+    private getWritableOption(mod: any, optId: string) {
+        const opt = (mod.options ?? []).find((o: any) => o.id === optId);
+        if (!opt) throw new OptionNotFoundError(optId);
+        if (opt.isDeleted) throw new DomainValidationError("Option is archived");
+        return opt;
+    }
     private findActiveMod(doc: any, modId: string) {
         return (doc.modifications ?? []).find((m: any) => m.id === modId && m.isDeleted !== true);
     }
@@ -418,4 +557,6 @@ export class ProductService implements IProductService {
             (m: any) => m.kind === "radio" && m.isBase === true && m.isDeleted !== true,
         );
     }
+
+    private activeOptions = (m: any) => (m?.options ?? []).filter((o: any) => !o.isDeleted);
 }

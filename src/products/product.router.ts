@@ -16,6 +16,10 @@ import { deleteProductModificationValidator } from "./validators/delete-modifica
 import { updateProductModificationValidator } from "./validators/update-modification.validator";
 import { createProductModificationValidator } from "./validators/create-modification.validator";
 import { setModificationBaseValidator } from "./validators/set-modification.validator";
+import { addModOptionsValidator } from "./validators/mod-option.add.validator";
+import { updateModOptionValidator } from "./validators/mod-option.update.validator";
+import { setModOptionDefaultValidator } from "./validators/mod-option.set-default.validator";
+import { deleteProductModOptionValidator } from "./validators/mod-option.delete.validator";
 
 // Service
 const productService = new ProductService(ProductModel);
@@ -105,6 +109,42 @@ router.post(
     setModificationBaseValidator,
     handleValidation,
     controller.setBaseModification,
+);
+
+router.post(
+    "/:id/modifications/:modId/options",
+    authenticate,
+    canAccess([Roles.ADMIN, Roles.MANAGER]),
+    addModOptionsValidator,
+    handleValidation,
+    controller.addModificationOptions,
+);
+
+router.patch(
+    "/:id/modifications/:modId/options/:optId",
+    authenticate,
+    canAccess([Roles.ADMIN, Roles.MANAGER]),
+    updateModOptionValidator,
+    handleValidation,
+    controller.updateModificationOption,
+);
+
+router.delete(
+    "/:id/modifications/:modId/options/:optId",
+    authenticate,
+    canAccess([Roles.ADMIN, Roles.MANAGER]),
+    deleteProductModOptionValidator,
+    handleValidation,
+    controller.deleteModificationOption,
+);
+
+router.post(
+    "/:id/modifications/:modId/options/:optId/default",
+    authenticate,
+    canAccess([Roles.ADMIN, Roles.MANAGER]),
+    setModOptionDefaultValidator,
+    handleValidation,
+    controller.setModificationDefaultOption,
 );
 
 export default router;

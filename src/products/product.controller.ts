@@ -8,11 +8,14 @@ import { CreateProductDto, ListProductsQueryDto, UpdateProductDto } from "./prod
 import {
     BaseRadioConflictError,
     CannotDeleteBaseRadioError,
+    CannotDeleteDefaultOptionError,
+    CannotDeleteLastActiveOptionError,
     DomainValidationError,
     DuplicateProductNameError,
     ForbiddenTenantUpdateError,
     InvalidImageKeyError,
     ModificationNotFoundError,
+    OptionNotFoundError,
     ProductArchivedError,
     ProductNotFoundError,
 } from "./product.errors";
@@ -275,6 +278,195 @@ export default class ProductController {
             if (err instanceof DomainValidationError) throw createHttpError(400, err.message);
 
             this.logger?.error?.("Error setting base modification", { err });
+            throw err;
+        }
+    };
+
+    addModificationOptions = async (req: any, res: any) => {
+        const { id, modId } = matchedData(req, { locations: ["params"], onlyValidData: true }) as {
+            id: string;
+            modId: string;
+        };
+        const { options } = matchedData(req, { locations: ["body"], onlyValidData: true }) as {
+            options: { label: string; price: number }[];
+        };
+
+        const auth = { role: req.auth?.role ?? "", tenantId: req.auth?.tenantId };
+        try {
+            const product = await this.productService.addOptions(id, modId, options, auth);
+            res.status(200).json({ product });
+        } catch (err: any) {
+            if (err instanceof ProductNotFoundError)
+                return res
+                    .status(404)
+                    .json({ errors: [{ type: err.name, msg: "Product not found", path: "", location: "" }] });
+            if (err instanceof ProductArchivedError)
+                return res.status(isAdmin(req) ? 409 : 404).json({
+                    errors: [
+                        {
+                            type: err.name,
+                            msg: isAdmin(req) ? "Product is archived" : "Product not found",
+                            path: "",
+                            location: "",
+                        },
+                    ],
+                });
+            if (err instanceof ForbiddenTenantUpdateError)
+                return res
+                    .status(403)
+                    .json({ errors: [{ type: err.name, msg: "Not enough permissions", path: "", location: "" }] });
+            if (err instanceof ModificationNotFoundError)
+                return res
+                    .status(404)
+                    .json({ errors: [{ type: err.name, msg: "Modification not found", path: "", location: "" }] });
+            if (err instanceof DomainValidationError)
+                return res.status(400).json({ errors: [{ type: err.name, msg: err.message, path: "", location: "" }] });
+            this.logger?.error?.("Error adding options", { err });
+            throw err;
+        }
+    };
+
+    updateModificationOption = async (req: any, res: any) => {
+        const { id, modId, optId } = matchedData(req, { locations: ["params"], onlyValidData: true }) as {
+            id: string;
+            modId: string;
+            optId: string;
+        };
+        const body = matchedData(req, { locations: ["body"], onlyValidData: true }) as {
+            label?: string;
+            price?: number;
+        };
+
+        const auth = { role: req.auth?.role ?? "", tenantId: req.auth?.tenantId };
+        try {
+            const product = await this.productService.updateOption(id, modId, optId, body, auth);
+            res.status(200).json({ product });
+        } catch (err: any) {
+            if (err instanceof ProductNotFoundError)
+                return res
+                    .status(404)
+                    .json({ errors: [{ type: err.name, msg: "Product not found", path: "", location: "" }] });
+            if (err instanceof ProductArchivedError)
+                return res.status(isAdmin(req) ? 409 : 404).json({
+                    errors: [
+                        {
+                            type: err.name,
+                            msg: isAdmin(req) ? "Product is archived" : "Product not found",
+                            path: "",
+                            location: "",
+                        },
+                    ],
+                });
+            if (err instanceof ForbiddenTenantUpdateError)
+                return res
+                    .status(403)
+                    .json({ errors: [{ type: err.name, msg: "Not enough permissions", path: "", location: "" }] });
+            if (err instanceof ModificationNotFoundError)
+                return res
+                    .status(404)
+                    .json({ errors: [{ type: err.name, msg: "Modification not found", path: "", location: "" }] });
+            if (err instanceof OptionNotFoundError)
+                return res
+                    .status(404)
+                    .json({ errors: [{ type: err.name, msg: "Option not found", path: "optId", location: "params" }] });
+            if (err instanceof DomainValidationError)
+                return res.status(400).json({ errors: [{ type: err.name, msg: err.message, path: "", location: "" }] });
+            this.logger?.error?.("Error updating option", { err });
+            throw err;
+        }
+    };
+
+    deleteModificationOption = async (req: any, res: any) => {
+        const { id, modId, optId } = matchedData(req, {
+            locations: ["params"],
+            onlyValidData: true,
+        }) as { id: string; modId: string; optId: string };
+
+        const auth = { role: req.auth?.role ?? "", tenantId: req.auth?.tenantId };
+
+        try {
+            await this.productService.deleteOption(id, modId, optId, auth);
+            res.sendStatus(204);
+        } catch (err: any) {
+            if (err instanceof ProductNotFoundError)
+                return res
+                    .status(404)
+                    .json({ errors: [{ type: err.name, msg: "Product not found", path: "", location: "" }] });
+            if (err instanceof ProductArchivedError)
+                return res.status(isAdmin(req) ? 409 : 404).json({
+                    errors: [
+                        {
+                            type: err.name,
+                            msg: isAdmin(req) ? "Product is archived" : "Product not found",
+                            path: "",
+                            location: "",
+                        },
+                    ],
+                });
+            if (err instanceof ForbiddenTenantUpdateError)
+                return res
+                    .status(403)
+                    .json({ errors: [{ type: err.name, msg: "Not enough permissions", path: "", location: "" }] });
+            if (err instanceof ModificationNotFoundError)
+                return res
+                    .status(404)
+                    .json({ errors: [{ type: err.name, msg: "Modification not found", path: "", location: "" }] });
+            if (err instanceof OptionNotFoundError)
+                return res
+                    .status(404)
+                    .json({ errors: [{ type: err.name, msg: "Option not found", path: "optId", location: "params" }] });
+            if (err instanceof CannotDeleteDefaultOptionError || err instanceof CannotDeleteLastActiveOptionError) {
+                return res.status(409).json({ errors: [{ type: err.name, msg: err.message, path: "", location: "" }] });
+            }
+            if (err instanceof DomainValidationError)
+                return res.status(400).json({ errors: [{ type: err.name, msg: err.message, path: "", location: "" }] });
+            this.logger?.error?.("Error deleting option", { err });
+            throw err;
+        }
+    };
+
+    setModificationDefaultOption = async (req: any, res: any) => {
+        const { id, modId, optId } = matchedData(req, { locations: ["params"], onlyValidData: true }) as {
+            id: string;
+            modId: string;
+            optId: string;
+        };
+        const auth = { role: req.auth?.role ?? "", tenantId: req.auth?.tenantId };
+
+        try {
+            const product = await this.productService.setDefaultOption(id, modId, optId, auth);
+            res.status(200).json({ product });
+        } catch (err: any) {
+            if (err instanceof ProductNotFoundError)
+                return res
+                    .status(404)
+                    .json({ errors: [{ type: err.name, msg: "Product not found", path: "", location: "" }] });
+            if (err instanceof ProductArchivedError)
+                return res.status(isAdmin(req) ? 409 : 404).json({
+                    errors: [
+                        {
+                            type: err.name,
+                            msg: isAdmin(req) ? "Product is archived" : "Product not found",
+                            path: "",
+                            location: "",
+                        },
+                    ],
+                });
+            if (err instanceof ForbiddenTenantUpdateError)
+                return res
+                    .status(403)
+                    .json({ errors: [{ type: err.name, msg: "Not enough permissions", path: "", location: "" }] });
+            if (err instanceof ModificationNotFoundError)
+                return res
+                    .status(404)
+                    .json({ errors: [{ type: err.name, msg: "Modification not found", path: "", location: "" }] });
+            if (err instanceof OptionNotFoundError)
+                return res
+                    .status(404)
+                    .json({ errors: [{ type: err.name, msg: "Option not found", path: "optId", location: "params" }] });
+            if (err instanceof DomainValidationError)
+                return res.status(400).json({ errors: [{ type: err.name, msg: err.message, path: "", location: "" }] });
+            this.logger?.error?.("Error setting default option", { err });
             throw err;
         }
     };

@@ -54,3 +54,24 @@ export class CannotDeleteBaseRadioError extends Error {
         this.name = "CannotDeleteBaseRadioError";
     }
 }
+
+export class OptionNotFoundError extends Error {
+    constructor(id: string) {
+        super(`Option ${id} not found`);
+        this.name = "OptionNotFoundError";
+    }
+}
+
+export class CannotDeleteLastActiveOptionError extends Error {
+    constructor(modName: string) {
+        super(`Cannot delete the last active option in modification '${modName}'`);
+        this.name = "CannotDeleteLastActiveOptionError";
+    }
+}
+
+export class CannotDeleteDefaultOptionError extends Error {
+    constructor(modName: string) {
+        super(`Cannot delete current default option in radio modification '${modName}'`);
+        this.name = "CannotDeleteDefaultOptionError";
+    }
+}
