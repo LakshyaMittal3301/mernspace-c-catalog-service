@@ -11,6 +11,7 @@ import { createProductValidator } from "./validators/create-product.validator";
 import { updateProductValidator } from "./validators/update-product.validator";
 import { deleteProductValidator } from "./validators/delete-product.validator";
 import { listProductsValidator } from "./validators/list-products.validator";
+import { getProductValidator } from "./validators/get-product.validator";
 
 // Service
 const productService = new ProductService(ProductModel);
@@ -55,5 +56,14 @@ router.get(
     listProductsValidator,
     handleValidation,
     controller.list,
+);
+
+router.get(
+    "/:id",
+    authenticate,
+    canAccess([Roles.ADMIN, Roles.MANAGER]),
+    getProductValidator,
+    handleValidation,
+    controller.get,
 );
 export default router;

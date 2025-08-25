@@ -157,4 +157,25 @@ export default class ProductController {
             throw err;
         }
     };
+
+    get = async (req: Request, res: Response) => {
+        const { id } = matchedData(req, { locations: ["params"], onlyValidData: true }) as { id: string };
+        const q = matchedData(req, { locations: ["query"], onlyValidData: true, includeOptionals: true }) as {
+            includeDeleted?: boolean;
+        };
+
+        // Managers are forced includeDeleted=false
+        const role = req.auth?.role ?? "";
+        const includeDeleted = role === Roles.MANAGER ? false : (q.includeDeleted ?? false);
+        const auth = { role, tenantId: req.auth?.tenantId };
+
+        try {
+            const product = await this.productService.get(id, includeDeleted, auth);
+            res.status(200).json({ product });
+        } catch (err: any) {
+            if (err instanceof ProductNotFoundError) throw createHttpError(404, "Product not found");
+            if (err instanceof ProductArchivedError) throw createHttpError(409, "Product is archived");
+            throw err;
+        }
+    };
 }

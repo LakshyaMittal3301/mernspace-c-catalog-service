@@ -27,6 +27,7 @@ export interface IProductService {
     update(id: string, dto: UpdateProductDto, auth: AuthCtx): Promise<UpdateProductDto>;
     softDelete(id: string, auth: AuthCtx): Promise<void>;
     list(query: ListProductsQueryDto, auth: AuthCtx): Promise<ListProductsResponseDto>;
+    get(id: string, includeDeleted: boolean, auth: AuthCtx): Promise<PublicProductDto>;
 }
 
 export class ProductService implements IProductService {
@@ -196,6 +197,44 @@ export class ProductService implements IProductService {
             items,
             pageInfo: { page, limit, total, hasNextPage },
         };
+    }
+
+    async get(id: string, includeDeleted: boolean, auth: AuthCtx): Promise<PublicProductDto> {
+        const doc = await this.productModel.findById(id).lean();
+        if (!doc) throw new ProductNotFoundError(id);
+
+        // RBAC/tenant scoping for manager → pretend not found if mismatched
+        if (auth.role === Roles.MANAGER) {
+            if (!auth.tenantId || auth.tenantId !== doc.tenantId) {
+                throw new ProductNotFoundError(id);
+            }
+        }
+
+        // Archived behavior
+        if (!includeDeleted && doc.isDeleted) {
+            if (auth.role === Roles.ADMIN) throw new ProductArchivedError(id);
+            throw new ProductNotFoundError(id);
+        }
+
+        let shaped = doc;
+
+        // Filter sub-items when includeDeleted=false
+        if (!includeDeleted) {
+            const mods = Array.isArray(doc.modifications) ? doc.modifications : [];
+            shaped = {
+                ...doc,
+                modifications: mods
+                    .filter((m: any) => m?.isDeleted !== true)
+                    .map((m: any) => ({
+                        ...m,
+                        options: Array.isArray(m.options)
+                            ? m.options.filter((o: any) => o?.isDeleted !== true)
+                            : m.options,
+                    })),
+            };
+        }
+
+        return toPublicProductDto(shaped);
     }
 
     private async loadForWrite(id: string, auth: AuthCtx) {

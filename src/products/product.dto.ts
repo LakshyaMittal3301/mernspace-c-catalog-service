@@ -86,6 +86,8 @@ export type PublicProductDto = {
     status: ProductStatus;
     isDeleted: boolean;
     deletedAt?: string;
+    createdAt: string;
+    updatedAt: string;
 };
 
 export type ListProductsQueryDto = {

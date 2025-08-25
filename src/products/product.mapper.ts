@@ -1,19 +1,25 @@
 import { PublicProductDto, PublicProductListItemDto } from "./product.dto";
 import { ProductDoc } from "./product.model";
 
-export const toPublicProductDto = (doc: ProductDoc): PublicProductDto => ({
-    id: doc._id.toString(),
-    tenantId: doc.tenantId,
-    name: doc.name,
-    description: doc.description,
-    image: doc.image ?? undefined,
-    categoryId: doc.categoryId,
-    attributeValues: doc.attributeValues ?? [],
-    modifications: doc.modifications ?? [],
-    status: doc.status,
-    isDeleted: doc.isDeleted,
-    deletedAt: doc.deletedAt?.toISOString(),
-});
+export const toPublicProductDto = (doc: any): PublicProductDto => {
+    const toISO = (d: any | undefined) => (d ? new Date(d).toISOString() : undefined);
+
+    return {
+        id: String(doc._id),
+        tenantId: doc.tenantId,
+        name: doc.name,
+        description: doc.description,
+        image: doc.image ? { key: doc.image.key, url: doc.image.url } : undefined,
+        categoryId: doc.categoryId,
+        attributeValues: doc.attributeValues ?? [],
+        modifications: doc.modifications ?? [],
+        status: doc.status,
+        isDeleted: !!doc.isDeleted,
+        deletedAt: toISO(doc.deletedAt),
+        createdAt: toISO(doc.createdAt)!, // Product schema has timestamps
+        updatedAt: toISO(doc.updatedAt)!,
+    };
+};
 
 export const toProductListItemDto = (doc: any): PublicProductListItemDto => {
     let basePrice = 0;
