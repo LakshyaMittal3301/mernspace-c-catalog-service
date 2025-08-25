@@ -35,3 +35,22 @@ export class DomainValidationError extends Error {
         this.name = "DomainValidationError";
     }
 }
+
+export class ModificationNotFoundError extends Error {
+    constructor(id: string) {
+        super(`Modification ${id} not found`);
+        this.name = "ModificationNotFoundError";
+    }
+}
+export class BaseRadioConflictError extends Error {
+    constructor() {
+        super("A base radio modification already exists");
+        this.name = "BaseRadioConflictError";
+    }
+}
+export class CannotDeleteBaseRadioError extends Error {
+    constructor() {
+        super("Cannot delete base radio; switch base first");
+        this.name = "CannotDeleteBaseRadioError";
+    }
+}

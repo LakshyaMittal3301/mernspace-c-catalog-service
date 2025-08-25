@@ -121,3 +121,10 @@ export type ListProductsResponseDto = {
     items: PublicProductListItemDto[];
     pageInfo: { page: number; limit: number; total: number; hasNextPage: boolean };
 };
+
+export type UpdateProductModificationDto = {
+    name?: string;
+    isRequired?: boolean;
+    minSelected?: number;
+    maxSelected?: number;
+};

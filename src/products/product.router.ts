@@ -12,6 +12,9 @@ import { updateProductValidator } from "./validators/update-product.validator";
 import { deleteProductValidator } from "./validators/delete-product.validator";
 import { listProductsValidator } from "./validators/list-products.validator";
 import { getProductValidator } from "./validators/get-product.validator";
+import { deleteProductModificationValidator } from "./validators/delete-modification.validator";
+import { updateProductModificationValidator } from "./validators/update-modification.validator";
+import { createProductModificationValidator } from "./validators/create-modification.validator";
 
 // Service
 const productService = new ProductService(ProductModel);
@@ -66,4 +69,32 @@ router.get(
     handleValidation,
     controller.get,
 );
+
+router.post(
+    "/:id/modifications",
+    authenticate,
+    canAccess([Roles.ADMIN, Roles.MANAGER]),
+    createProductModificationValidator,
+    handleValidation,
+    controller.addModification,
+);
+
+router.patch(
+    "/:id/modifications/:modId",
+    authenticate,
+    canAccess([Roles.ADMIN, Roles.MANAGER]),
+    updateProductModificationValidator,
+    handleValidation,
+    controller.updateModification,
+);
+
+router.delete(
+    "/:id/modifications/:modId",
+    authenticate,
+    canAccess([Roles.ADMIN, Roles.MANAGER]),
+    deleteProductModificationValidator,
+    handleValidation,
+    controller.deleteModification,
+);
+
 export default router;

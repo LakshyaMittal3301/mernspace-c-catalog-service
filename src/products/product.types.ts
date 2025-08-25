@@ -9,8 +9,8 @@ export interface Product {
     description: string;
     image?: { key: string; url: string };
     categoryId: string;
-    attributeValues?: AttributeValue[];
-    modifications?: ModificationDef[];
+    attributeValues: AttributeValue[];
+    modifications: ModificationDef[];
     status: ProductStatus;
     isDeleted: boolean;
     deletedAt?: Date;

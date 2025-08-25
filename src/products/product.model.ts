@@ -57,6 +57,7 @@ const RadioModificationSchema = new Schema(
         options: { type: [ModOptionSchema], default: [] },
         defaultOptionId: { type: String },
         defaultOptionIndex: { type: Number, select: false },
+        isRequired: { type: Boolean, default: false }, // <-- add this
     },
     { _id: false, strict: true },
 );

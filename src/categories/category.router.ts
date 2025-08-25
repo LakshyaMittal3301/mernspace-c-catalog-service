@@ -1,4 +1,4 @@
-import express, { Request, Response } from "express";
+import express, { Response } from "express";
 import { createCategoryValidator } from "./validators/create-category.validator";
 import { handleValidation } from "../common/validators/handleValidation";
 import CategoryController from "./category.controller";

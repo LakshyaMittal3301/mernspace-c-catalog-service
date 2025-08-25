@@ -6,10 +6,13 @@ import { Logger } from "winston";
 import { IProductService } from "./product.service";
 import { CreateProductDto, ListProductsQueryDto, UpdateProductDto } from "./product.dto";
 import {
+    BaseRadioConflictError,
+    CannotDeleteBaseRadioError,
     DomainValidationError,
     DuplicateProductNameError,
     ForbiddenTenantUpdateError,
     InvalidImageKeyError,
+    ModificationNotFoundError,
     ProductArchivedError,
     ProductNotFoundError,
 } from "./product.errors";
@@ -175,6 +178,76 @@ export default class ProductController {
         } catch (err: any) {
             if (err instanceof ProductNotFoundError) throw createHttpError(404, "Product not found");
             if (err instanceof ProductArchivedError) throw createHttpError(409, "Product is archived");
+            throw err;
+        }
+    };
+
+    addModification = async (req: Request, res: Response) => {
+        const { id } = matchedData(req, { locations: ["params"], onlyValidData: true }) as { id: string };
+        const body = matchedData(req, { locations: ["body"], onlyValidData: true, includeOptionals: true }) as any;
+        const auth = { role: req.auth?.role ?? "", tenantId: req.auth?.tenantId };
+
+        try {
+            const product = await this.productService.addModification(id, body, auth);
+            res.status(201).json({ product });
+        } catch (err: any) {
+            if (err instanceof BaseRadioConflictError) throw createHttpError(409, err.message);
+            if (err instanceof DomainValidationError) throw createHttpError(400, err.message);
+            if (err?.name === "ProductNotFoundError") throw createHttpError(404, "Product not found");
+            if (err?.name === "ProductArchivedError") {
+                // Manager → 404; Admin → 409
+                if ((req.auth?.role ?? "") === Roles.ADMIN) throw createHttpError(409, "Product is archived");
+                throw createHttpError(404, "Product not found");
+            }
+            if (err?.name === "ForbiddenTenantUpdateError") throw createHttpError(403, "Not enough permissions");
+            throw err;
+        }
+    };
+
+    updateModification = async (req: Request, res: Response) => {
+        const { id, modId } = matchedData(req, { locations: ["params"], onlyValidData: true }) as {
+            id: string;
+            modId: string;
+        };
+        const body = matchedData(req, { locations: ["body"], onlyValidData: true, includeOptionals: true }) as any;
+        const auth = { role: req.auth?.role ?? "", tenantId: req.auth?.tenantId };
+
+        try {
+            const product = await this.productService.updateModification(id, modId, body, auth);
+            res.status(200).json({ product });
+        } catch (err: any) {
+            if (err instanceof ModificationNotFoundError) throw createHttpError(404, "Modification not found");
+            if (err instanceof DomainValidationError) throw createHttpError(400, err.message);
+            if (err?.name === "ProductNotFoundError") throw createHttpError(404, "Product not found");
+            if (err?.name === "ProductArchivedError") {
+                if ((req.auth?.role ?? "") === Roles.ADMIN) throw createHttpError(409, "Product is archived");
+                throw createHttpError(404, "Product not found");
+            }
+            if (err?.name === "ForbiddenTenantUpdateError") throw createHttpError(403, "Not enough permissions");
+            throw err;
+        }
+    };
+
+    deleteModification = async (req: Request, res: Response) => {
+        const { id, modId } = matchedData(req, { locations: ["params"], onlyValidData: true }) as {
+            id: string;
+            modId: string;
+        };
+        const auth = { role: req.auth?.role ?? "", tenantId: req.auth?.tenantId };
+
+        try {
+            await this.productService.deleteModification(id, modId, auth);
+            res.sendStatus(204);
+        } catch (err: any) {
+            if (err instanceof ModificationNotFoundError) throw createHttpError(404, "Modification not found");
+            if (err instanceof CannotDeleteBaseRadioError) throw createHttpError(409, err.message);
+            if (err instanceof DomainValidationError) throw createHttpError(400, err.message);
+            if (err?.name === "ProductNotFoundError") throw createHttpError(404, "Product not found");
+            if (err?.name === "ProductArchivedError") {
+                if ((req.auth?.role ?? "") === Roles.ADMIN) throw createHttpError(409, "Product is archived");
+                throw createHttpError(404, "Product not found");
+            }
+            if (err?.name === "ForbiddenTenantUpdateError") throw createHttpError(403, "Not enough permissions");
             throw err;
         }
     };

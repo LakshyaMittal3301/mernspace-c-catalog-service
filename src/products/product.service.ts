@@ -7,13 +7,17 @@ import {
     PublicProductDto,
     PublicProductListItemDto,
     UpdateProductDto,
+    UpdateProductModificationDto,
 } from "./product.dto";
 import { toProductListItemDto, toPublicProductDto } from "./product.mapper";
 import {
+    BaseRadioConflictError,
+    CannotDeleteBaseRadioError,
     DomainValidationError,
     DuplicateProductNameError,
     ForbiddenTenantUpdateError,
     InvalidImageKeyError,
+    ModificationNotFoundError,
     ProductArchivedError,
     ProductNotFoundError,
 } from "./product.errors";
@@ -28,6 +32,14 @@ export interface IProductService {
     softDelete(id: string, auth: AuthCtx): Promise<void>;
     list(query: ListProductsQueryDto, auth: AuthCtx): Promise<ListProductsResponseDto>;
     get(id: string, includeDeleted: boolean, auth: AuthCtx): Promise<PublicProductDto>;
+    addModification(productId: string, dto: any, auth: AuthCtx): Promise<PublicProductDto>;
+    updateModification(
+        productId: string,
+        modId: string,
+        dto: UpdateProductModificationDto,
+        auth: AuthCtx,
+    ): Promise<PublicProductDto>;
+    deleteModification(productId: string, modId: string, auth: AuthCtx): Promise<void>;
 }
 
 export class ProductService implements IProductService {
@@ -236,6 +248,113 @@ export class ProductService implements IProductService {
 
         return toPublicProductDto(shaped);
     }
+    async addModification(productId: string, dto: any, auth: AuthCtx): Promise<PublicProductDto> {
+        const doc = await this.loadForWrite(productId, auth);
+
+        // Guard: checkbox cannot be base
+        if (dto.kind === "checkbox" && dto.isBase === true) {
+            throw new DomainValidationError("checkbox cannot be base");
+        }
+
+        // Map defaultOptionIndex → defaultOptionId for radio
+        const modToInsert: any = {
+            name: dto.name,
+            kind: dto.kind,
+            isBase: dto.kind === "radio" ? !!dto.isBase : false,
+            options: dto.options ?? [],
+            // radio only
+            defaultOptionId: undefined as string | undefined,
+            // checkbox only
+            minSelected: dto.kind === "checkbox" ? dto.minSelected : undefined,
+            maxSelected: dto.kind === "checkbox" ? dto.maxSelected : undefined,
+        };
+
+        if (dto.kind === "radio" && dto.defaultOptionIndex != null) {
+            const idx = dto.defaultOptionIndex;
+            const opt = modToInsert.options?.[idx];
+            if (!opt) throw new DomainValidationError("defaultOptionIndex out of range");
+            modToInsert.defaultOptionId = opt.id; // id will be auto-generated if missing in pre-validate
+        }
+
+        // Base conflict detection for clearer 409
+        if (modToInsert.kind === "radio" && modToInsert.isBase === true) {
+            const already = this.hasAnotherActiveBase(doc);
+            if (already) throw new BaseRadioConflictError();
+        }
+
+        doc.modifications.push(modToInsert);
+
+        try {
+            await doc.save();
+            return toPublicProductDto(doc);
+        } catch (err: any) {
+            if (err?.name === "ValidationError" || typeof err?.message === "string") {
+                throw new DomainValidationError(err.message);
+            }
+            throw err;
+        }
+    }
+
+    async updateModification(
+        productId: string,
+        modId: string,
+        dto: UpdateProductModificationDto,
+        auth: AuthCtx,
+    ): Promise<PublicProductDto> {
+        const doc = await this.loadForWrite(productId, auth);
+        const mod = this.findActiveMod(doc, modId);
+        if (!mod) throw new ModificationNotFoundError(modId);
+
+        // apply allowed fields only (validator already forbids others)
+        if (dto.name !== undefined) mod.name = dto.name;
+
+        if (mod.kind === "radio") {
+            if (dto.isRequired !== undefined) mod.isRequired = dto.isRequired;
+            if (dto.minSelected !== undefined || dto.maxSelected !== undefined) {
+                throw new DomainValidationError("minSelected/maxSelected apply only to checkbox");
+            }
+        } else if (mod.kind === "checkbox") {
+            if (dto.minSelected !== undefined) mod.minSelected = dto.minSelected;
+            if (dto.maxSelected !== undefined) mod.maxSelected = dto.maxSelected;
+            if (dto.isRequired !== undefined) {
+                throw new DomainValidationError("isRequired applies only to radio");
+            }
+        }
+
+        try {
+            await doc.save();
+            return toPublicProductDto(doc);
+        } catch (err: any) {
+            if (err?.name === "ValidationError" || typeof err?.message === "string") {
+                throw new DomainValidationError(err.message);
+            }
+            throw err;
+        }
+    }
+
+    async deleteModification(productId: string, modId: string, auth: AuthCtx): Promise<void> {
+        const doc = await this.loadForWrite(productId, auth);
+        const mod = (doc.modifications ?? []).find((m: any) => m.id === modId);
+        if (!mod) throw new ModificationNotFoundError(modId);
+
+        if (mod.isDeleted) return; // idempotent
+
+        if (mod.kind === "radio" && mod.isBase === true) {
+            throw new CannotDeleteBaseRadioError();
+        }
+
+        mod.isDeleted = true;
+        mod.deletedAt = new Date();
+
+        try {
+            await doc.save();
+        } catch (err: any) {
+            if (err?.name === "ValidationError" || typeof err?.message === "string") {
+                throw new DomainValidationError(err.message);
+            }
+            throw err;
+        }
+    }
 
     private async loadForWrite(id: string, auth: AuthCtx) {
         const doc = await this.productModel.findById(id);
@@ -245,5 +364,15 @@ export class ProductService implements IProductService {
             throw new ForbiddenTenantUpdateError();
         }
         return doc;
+    }
+
+    private findActiveMod(doc: any, modId: string) {
+        return (doc.modifications ?? []).find((m: any) => m.id === modId && m.isDeleted !== true);
+    }
+
+    private hasAnotherActiveBase(doc: any) {
+        return (doc.modifications ?? []).some(
+            (m: any) => m.kind === "radio" && m.isBase === true && m.isDeleted !== true,
+        );
     }
 }
