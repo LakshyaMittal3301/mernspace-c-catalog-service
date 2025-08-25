@@ -251,4 +251,31 @@ export default class ProductController {
             throw err;
         }
     };
+
+    setBaseModification = async (req: any, res: any) => {
+        const { id, modId } = matchedData(req, {
+            locations: ["params"],
+            onlyValidData: true,
+            includeOptionals: true,
+        }) as { id: string; modId: string };
+
+        const auth = { role: req.auth?.role ?? "", tenantId: req.auth?.tenantId };
+
+        try {
+            const product = await this.productService.setBaseModification(id, modId, auth);
+            res.status(200).json({ product });
+        } catch (err: any) {
+            if (err instanceof ProductNotFoundError) throw createHttpError(404, "Product not found");
+            if (err instanceof ModificationNotFoundError) throw createHttpError(404, "Modification not found");
+            if (err instanceof ProductArchivedError) {
+                if (isAdmin(req)) throw createHttpError(409, "Product is archived");
+                throw createHttpError(404, "Product not found");
+            }
+            if (err instanceof ForbiddenTenantUpdateError) throw createHttpError(403, "Not enough permissions");
+            if (err instanceof DomainValidationError) throw createHttpError(400, err.message);
+
+            this.logger?.error?.("Error setting base modification", { err });
+            throw err;
+        }
+    };
 }

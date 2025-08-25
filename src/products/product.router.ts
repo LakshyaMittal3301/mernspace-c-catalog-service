@@ -15,6 +15,7 @@ import { getProductValidator } from "./validators/get-product.validator";
 import { deleteProductModificationValidator } from "./validators/delete-modification.validator";
 import { updateProductModificationValidator } from "./validators/update-modification.validator";
 import { createProductModificationValidator } from "./validators/create-modification.validator";
+import { setModificationBaseValidator } from "./validators/set-modification.validator";
 
 // Service
 const productService = new ProductService(ProductModel);
@@ -95,6 +96,15 @@ router.delete(
     deleteProductModificationValidator,
     handleValidation,
     controller.deleteModification,
+);
+
+router.post(
+    "/:id/modifications/:modId/base",
+    authenticate,
+    canAccess([Roles.ADMIN, Roles.MANAGER]),
+    setModificationBaseValidator,
+    handleValidation,
+    controller.setBaseModification,
 );
 
 export default router;

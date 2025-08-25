@@ -40,6 +40,7 @@ export interface IProductService {
         auth: AuthCtx,
     ): Promise<PublicProductDto>;
     deleteModification(productId: string, modId: string, auth: AuthCtx): Promise<void>;
+    setBaseModification(productId: string, modId: string, auth: AuthCtx): Promise<PublicProductDto>;
 }
 
 export class ProductService implements IProductService {
@@ -348,6 +349,48 @@ export class ProductService implements IProductService {
 
         try {
             await doc.save();
+        } catch (err: any) {
+            if (err?.name === "ValidationError" || typeof err?.message === "string") {
+                throw new DomainValidationError(err.message);
+            }
+            throw err;
+        }
+    }
+
+    async setBaseModification(productId: string, modId: string, auth: AuthCtx) {
+        const doc = await this.loadForWrite(productId, auth);
+
+        const target: any = (doc.modifications ?? []).find((m: any) => m.id === modId);
+        if (!target) throw new ModificationNotFoundError(modId);
+
+        // Domain checks
+        if (target.isDeleted) {
+            throw new DomainValidationError("Target modification is deleted");
+        }
+        if (target.kind !== "radio") {
+            throw new DomainValidationError("Only radio modifications can be set as base");
+        }
+
+        const active = (target.options ?? []).filter((o: any) => !o.isDeleted);
+        if (active.length < 1) {
+            throw new DomainValidationError("Base radio must have at least one active option");
+        }
+
+        // Ensure defaultOptionId points to an active option. If absent/mismatched, auto-set to first active.
+        if (!target.defaultOptionId || !active.some((o: any) => o.id === target.defaultOptionId)) {
+            target.defaultOptionId = active[0].id;
+        }
+
+        // Flip base flags: exactly one base radio
+        for (const m of doc.modifications ?? []) {
+            if (m.kind === "radio") {
+                m.isBase = m.id === modId;
+            }
+        }
+
+        try {
+            await doc.save(); // model pre-validate will re-check invariants
+            return toPublicProductDto(doc);
         } catch (err: any) {
             if (err?.name === "ValidationError" || typeof err?.message === "string") {
                 throw new DomainValidationError(err.message);
