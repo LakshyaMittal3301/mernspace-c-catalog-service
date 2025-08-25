@@ -4,9 +4,10 @@ import {
     GetCategoryDto,
     ListCategoryDto,
     PublicCategoryDto,
+    PublicCategoryListItemDto,
     UpdateCategoryDto,
 } from "./category.dto";
-import { toPublicCategoryDto } from "./category.mapper";
+import { toCategoryListItemDto, toPublicCategoryDto } from "./category.mapper";
 import { Category } from "./category.types";
 import {
     AttributeNotFoundError,
@@ -37,7 +38,7 @@ export interface ICategoryService {
     create(dto: CreateCategoryDto): Promise<PublicCategoryDto>;
     update(id: string, dto: UpdateCategoryDto): Promise<PublicCategoryDto>;
     softDelete(id: string): Promise<void>;
-    list(dto: ListCategoryDto): Promise<PublicCategoryDto[]>;
+    list(dto: ListCategoryDto): Promise<PublicCategoryListItemDto[]>;
     get(id: string, dto: GetCategoryDto): Promise<PublicCategoryDto>;
     addAttribute(id: string, dto: CreateAttributeDto): Promise<PublicCategoryDto>;
     updateAttribute(categoryId: string, attrId: string, dto: UpdateAttributeDto): Promise<PublicCategoryDto>;
@@ -123,18 +124,50 @@ export class CategoryService implements ICategoryService {
         return;
     }
 
-    async list(dto: ListCategoryDto): Promise<PublicCategoryDto[]> {
+    async list(dto: ListCategoryDto): Promise<PublicCategoryListItemDto[]> {
         const filter = dto.includeDeleted ? {} : { isDeleted: false };
-        const docs = await this.categoryModel.find(filter);
 
-        return docs.map(toPublicCategoryDto);
+        const proj = {
+            name: 1,
+            isDeleted: 1,
+            deletedAt: 1,
+            createdAt: 1,
+            updatedAt: 1,
+        };
+
+        const docs = await this.categoryModel.find(filter, proj).lean();
+        return docs.map(toCategoryListItemDto);
     }
 
     async get(id: string, dto: GetCategoryDto): Promise<PublicCategoryDto> {
-        const doc = await this.categoryModel.findById(id);
+        const doc = await this.categoryModel.findById(id).lean();
         if (!doc) throw new CategoryNotFoundError(id);
-        if (!dto.includeDeleted && doc.isDeleted) throw new CategoryArchivedError(id);
-        return toPublicCategoryDto(doc);
+
+        if (!dto.includeDeleted && doc.isDeleted) {
+            throw new CategoryArchivedError(id);
+        }
+
+        let shaped = doc;
+        if (!dto.includeDeleted) {
+            const filterInactive = <T extends { isDeleted?: boolean }>(arr: T[] = []) =>
+                arr.filter((x) => x && x.isDeleted !== true);
+
+            const mapWithActiveOptions = (arr: any[] = []) =>
+                arr
+                    .filter((d) => d && d.isDeleted !== true)
+                    .map((d) => ({
+                        ...d,
+                        options: Array.isArray(d.options) ? filterInactive(d.options) : d.options,
+                    }));
+
+            shaped = {
+                ...doc,
+                attributes: mapWithActiveOptions(doc.attributes),
+                modificationPresets: mapWithActiveOptions(doc.modificationPresets),
+            };
+        }
+
+        return toPublicCategoryDto(shaped);
     }
 
     async addAttribute(id: string, dto: CreateAttributeDto): Promise<PublicCategoryDto> {

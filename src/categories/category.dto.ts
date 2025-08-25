@@ -1,4 +1,3 @@
-// src/categories/category.dto.ts
 import { AttributeDefinition } from "../core/types/attributes";
 import { ModificationPreset } from "../core/types/modifications";
 import { CreateAttributeDto } from "./attribute.dto";
@@ -22,6 +21,15 @@ export type GetCategoryDto = {
     includeDeleted: boolean;
 };
 
+export type PublicCategoryListItemDto = {
+    id: string;
+    name: string;
+    isDeleted: boolean;
+    deletedAt?: string;
+    createdAt: string;
+    updatedAt: string;
+};
+
 export type PublicCategoryDto = {
     id: string;
     name: string;
@@ -29,5 +37,6 @@ export type PublicCategoryDto = {
     modificationPresets: ModificationPreset[];
     isDeleted: boolean;
     deletedAt?: string;
-    // To-do: Add createdAt and updatedAt
+    createdAt: string; // NEW
+    updatedAt: string; // NEW
 };

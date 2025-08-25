@@ -72,9 +72,10 @@ describe("READ: GET /categories & GET /categories/:id", () => {
                 const cat = list[0];
                 expect(cat).toMatchObject({ name: "A1", isDeleted: false });
                 expect(cat.deletedAt).toBeUndefined();
-                expect(Array.isArray(cat.attributes)).toBe(true);
-                expect(Array.isArray(cat.modificationPresets)).toBe(true);
-                expect(cat).toHaveProperty("id");
+                expect(cat).not.toHaveProperty("attributes");
+                expect(cat).not.toHaveProperty("modificationPresets");
+                expect(typeof cat.createdAt).toBe("string");
+                expect(typeof cat.updatedAt).toBe("string");
             });
 
             it("200 includeDeleted=true → returns active + deleted; deleted have deletedAt", async () => {
